@@ -175,14 +175,26 @@ private fun ShunShunApp() {
 
 @Composable
 private fun BottomNavigation(selected: AppTab, onSelect: (AppTab) -> Unit) {
-    Row(Modifier.fillMaxWidth().background(Surface).padding(horizontal = 18.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(Modifier.fillMaxWidth().background(Surface).border(1.dp, Line.copy(alpha = .45f)).padding(horizontal = 18.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
         AppTab.values().forEach { item ->
             val active = item == selected
-            val icon = when (item) { AppTab.HOME -> Icons.Outlined.Home; AppTab.RECORD -> Icons.Outlined.NoteAlt; AppTab.STATS -> Icons.Outlined.InsertChart; AppTab.PROFILE -> Icons.Outlined.PersonOutline }
             Column(Modifier.width(62.dp).clickable { onSelect(item) }, horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.size(44.dp).background(if (active) SageLight.copy(alpha = .7f) else Color.Transparent, CircleShape), contentAlignment = Alignment.Center) { Icon(icon, item.title, tint = if (active) SageDark else Muted, modifier = Modifier.size(23.dp)) }
-                Text(item.title, color = if (active) SageDark else Muted, fontSize = 11.sp, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal)
+                Box(Modifier.size(40.dp).background(if (active) SageLight.copy(alpha = .65f) else Color.Transparent, CircleShape), contentAlignment = Alignment.Center) { NavGlyph(item, if (active) SageDark else Muted) }
+                Text(item.title, color = if (active) SageDark else Muted, fontSize = 10.sp, fontWeight = if (active) FontWeight.Medium else FontWeight.Normal)
             }
+        }
+    }
+}
+
+@Composable
+private fun NavGlyph(tab: AppTab, tint: Color) {
+    Canvas(Modifier.size(22.dp)) {
+        val stroke = Stroke(width = 2.2f, cap = StrokeCap.Round)
+        when (tab) {
+            AppTab.HOME -> { val house = Path().apply { moveTo(2f, 10f); lineTo(size.width / 2f, 3f); lineTo(size.width - 2f, 10f); moveTo(4f, 9f); lineTo(4f, size.height - 2f); lineTo(size.width - 4f, size.height - 2f); lineTo(size.width - 4f, 9f) }; drawPath(house, tint, style = stroke); drawLine(tint, Offset(size.width / 2f, size.height - 2f), Offset(size.width / 2f, size.height - 8f), 2.2f, StrokeCap.Round) }
+            AppTab.RECORD -> { drawRoundRect(tint, topLeft = Offset(4f, 3f), size = Size(size.width - 8f, size.height - 5f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f), style = stroke); drawLine(tint, Offset(8f, 8f), Offset(size.width - 7f, 8f), 2f, StrokeCap.Round); drawLine(tint, Offset(8f, 13f), Offset(size.width - 7f, 13f), 2f, StrokeCap.Round) }
+            AppTab.STATS -> { drawLine(tint, Offset(3f, size.height - 3f), Offset(size.width - 3f, size.height - 3f), 2.2f, StrokeCap.Round); drawRoundRect(tint, topLeft = Offset(5f, 10f), size = Size(3f, 7f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(1.5f)); drawRoundRect(tint, topLeft = Offset(10f, 6f), size = Size(3f, 11f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(1.5f)); drawRoundRect(tint, topLeft = Offset(15f, 3f), size = Size(3f, 14f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(1.5f)) }
+            AppTab.PROFILE -> { drawCircle(tint, 5f, Offset(size.width / 2f, 6f), style = stroke); drawArc(tint, 200f, 140f, false, topLeft = Offset(4f, 10f), size = Size(size.width - 8f, 11f), style = stroke) }
         }
     }
 }
@@ -197,14 +209,13 @@ private fun HomeScreen(records: List<PoopRecord>, onRecord: () -> Unit) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         item {
             Spacer(Modifier.height(23.dp))
-            Text("便便晴天", color = SageDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.fillMaxWidth())
-            Text(greeting, color = Ink, fontSize = 30.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+            Text(greeting, color = Ink, fontSize = 28.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.fillMaxWidth())
             Text("今天记录了吗？", color = Muted, fontSize = 16.sp, modifier = Modifier.fillMaxWidth().padding(top = 5.dp))
             Text("记录 ${records.size} 次", color = SageDark, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
             Spacer(Modifier.height(17.dp))
-            Box(Modifier.fillMaxWidth().height(390.dp).background(Meadow.copy(alpha = .45f), RoundedCornerShape(32.dp)), contentAlignment = Alignment.BottomCenter) {
+            Box(Modifier.fillMaxWidth().height(370.dp).background(Meadow.copy(alpha = .58f), RoundedCornerShape(31.dp)), contentAlignment = Alignment.BottomCenter) {
                 GardenIllustration()
-                Box(Modifier.padding(bottom = 48.dp).scale(bob).clickable { bubble = !bubble }) { PoopMascot(132.dp, MascotMood.Happy) }
+                Box(Modifier.padding(bottom = 43.dp).scale(bob).clickable { bubble = !bubble }) { PoopMascot(112.dp, MascotMood.Happy) }
                 AnimatedVisibility(visible = bubble, modifier = Modifier.align(Alignment.Center).offset(y = (-72).dp)) { Text("今天也要顺顺利利～", color = BrownDark, fontSize = 12.sp, modifier = Modifier.background(Surface, RoundedCornerShape(18.dp)).padding(horizontal = 14.dp, vertical = 9.dp)) }
                 Text("顺顺，今天也要轻松一点", color = SageDark, fontSize = 12.sp, modifier = Modifier.align(Alignment.TopCenter).padding(top = 21.dp))
             }
@@ -222,7 +233,7 @@ private fun GardenIllustration() {
     Canvas(Modifier.fillMaxSize()) {
         val w = size.width; val h = size.height
         drawCircle(Yellow.copy(alpha = .95f), 29f, Offset(w - 45f, 46f))
-        drawCircle(Color.White.copy(alpha = .8f), 21f, Offset(45f, 65f)); drawCircle(Color.White.copy(alpha = .8f), 17f, Offset(66f, 65f)); drawCircle(Color.White.copy(alpha = .8f), 13f, Offset(81f, 65f))
+        drawCircle(Color.White.copy(alpha = .58f), 21f, Offset(45f, 65f)); drawCircle(Color.White.copy(alpha = .58f), 17f, Offset(66f, 65f)); drawCircle(Color.White.copy(alpha = .58f), 13f, Offset(81f, 65f)); drawLine(SageDark.copy(alpha = .16f), Offset(34f, 72f), Offset(90f, 72f), 1.6f, StrokeCap.Round)
         drawOval(Color(0xFFD9E7BE), topLeft = Offset(-w * .08f, h * .53f), size = Size(w * 1.16f, h * .57f)); drawOval(Color(0xFFC7DCA5), topLeft = Offset(-w * .14f, h * .74f), size = Size(w * 1.28f, h * .42f))
         drawPlant(24f, h - 8f, -1f); drawPlant(w - 25f, h - 12f, 1f); drawPlant(50f, h - 21f, -1f); drawPlant(w - 53f, h - 25f, 1f)
         for (i in 0..15) { val x = (i * 43f) % w; drawLine(SageDark.copy(alpha = .38f), Offset(x, h - 16f), Offset(x + if (i % 2 == 0) 3f else -2f, h - 27f), 1.6f, StrokeCap.Round) }
@@ -251,7 +262,7 @@ private fun PoopMascot(size: Dp, mood: MascotMood = MascotMood.Default) {
 @Composable
 private fun StoolIcon(type: Int, size: Dp = 48.dp) {
     Canvas(Modifier.size(size)) {
-        val w = size.toPx(); val h = size.toPx(); val fill = Brown; val detail = BrownDark.copy(alpha = .62f)
+        val w = size.toPx(); val h = size.toPx(); val fill = Brown.copy(alpha = .22f); val detail = BrownDark.copy(alpha = .72f)
         when (type) {
             1 -> { drawCircle(fill, w * .16f, Offset(w * .34f, h * .55f)); drawCircle(fill, w * .16f, Offset(w * .66f, h * .55f)); drawCircle(fill, w * .13f, Offset(w * .50f, h * .28f)); drawLine(detail, Offset(w * .31f, h * .69f), Offset(w * .69f, h * .69f), 2f, StrokeCap.Round) }
             2 -> { drawRoundRect(fill, topLeft = Offset(w * .16f, h * .30f), size = Size(w * .68f, h * .34f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .17f)); drawLine(detail, Offset(w * .27f, h * .39f), Offset(w * .70f, h * .54f), 2f, StrokeCap.Round) }
@@ -276,11 +287,11 @@ private fun MoodFace(index: Int, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun PrimaryButton(label: String, onClick: () -> Unit) {
     val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }; val pressed by source.collectIsPressedAsState()
-    Button(onClick = onClick, interactionSource = source, modifier = Modifier.fillMaxWidth().height(56.dp).scale(if (pressed) .97f else 1f), shape = RoundedCornerShape(30.dp), colors = ButtonDefaults.buttonColors(containerColor = Sage), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 2.dp)) { Text(label, fontSize = 17.sp, fontWeight = FontWeight.SemiBold) }
+    Button(onClick = onClick, interactionSource = source, modifier = Modifier.fillMaxWidth().height(53.dp).scale(if (pressed) .97f else 1f), shape = RoundedCornerShape(28.dp), colors = ButtonDefaults.buttonColors(containerColor = Sage), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp)) { Text(label, fontSize = 16.sp, fontWeight = FontWeight.Medium) }
 }
 
 @Composable
-private fun SectionCard(title: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) { Column(modifier.fillMaxWidth().background(Surface, RoundedCornerShape(25.dp)).border(1.dp, Line, RoundedCornerShape(25.dp)).padding(17.dp)) { Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Ink); Spacer(Modifier.height(12.dp)); content() } }
+private fun SectionCard(title: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) { Column(modifier.fillMaxWidth().background(Surface.copy(alpha = .76f), RoundedCornerShape(23.dp)).border(1.dp, Line.copy(alpha = .78f), RoundedCornerShape(23.dp)).padding(16.dp)) { Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Ink); Spacer(Modifier.height(11.dp)); content() } }
 
 @Composable
 private fun SegmentedControl(selected: String, values: List<String>, onSelect: (String) -> Unit) { Row(Modifier.fillMaxWidth().background(Color(0xFFF1EFE6), RoundedCornerShape(16.dp)).padding(4.dp)) { values.forEach { value -> Box(Modifier.weight(1f).height(36.dp).background(if (selected == value) Surface else Color.Transparent, RoundedCornerShape(12.dp)).clickable { onSelect(value) }, contentAlignment = Alignment.Center) { Text(value, color = if (selected == value) SageDark else Muted, fontSize = 13.sp, fontWeight = if (selected == value) FontWeight.SemiBold else FontWeight.Normal) } } } }
@@ -327,7 +338,16 @@ private fun StatisticsScreen(records: List<PoopRecord>) { var range by rememberS
 private fun StatMetric(label: String, value: String) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(value, color = SageDark, fontSize = 27.sp, fontWeight = FontWeight.Bold); Text(label, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp)) } }
 
 @Composable
-private fun RhythmChart(records: List<PoopRecord>) { if (records.isEmpty()) { EmptyState("再记录几次，我就能帮你发现规律啦。", "你的每一次记录，都会变成温柔的趋势线。", MascotMood.Water); return }; val points = records.take(7).reversed().map { it.smoothness }; Canvas(Modifier.fillMaxWidth().height(190.dp).padding(horizontal = 6.dp)) { val chartW = size.width; val chartH = size.height - 32f; for (i in 0..3) { val y = chartH * i / 3f; drawLine(Line, Offset(0f, y), Offset(chartW, y), 1f) }; val step = chartW / (points.size.coerceAtLeast(2) - 1); val path = Path(); points.forEachIndexed { index, point -> val x = step * index; val y = chartH - chartH * point / 100f; if (index == 0) path.moveTo(x, y) else path.lineTo(x, y); drawCircle(Sage, 5f, Offset(x, y)) }; drawPath(path, Sage, style = Stroke(width = 4f, cap = StrokeCap.Round)) }; Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { points.indices.forEach { Text("${it + 1}", color = Muted, fontSize = 10.sp) } } }
+private fun RhythmChart(records: List<PoopRecord>) {
+    if (records.isEmpty()) { EmptyState("再记录几次，我就能帮你发现规律啦。", "你的每一次记录，都会变成温柔的趋势线。", MascotMood.Water); return }
+    val points = records.take(7).reversed().map { it.smoothness }
+    Canvas(Modifier.fillMaxWidth().height(190.dp).padding(horizontal = 6.dp)) {
+        val chartW = size.width; val chartH = size.height - 28f; val slot = chartW / points.size.coerceAtLeast(1); val barW = (slot * .42f).coerceAtLeast(18f)
+        for (i in 0..3) { val y = chartH * i / 3f; drawLine(Line, Offset(0f, y), Offset(chartW, y), 1f) }
+        points.forEachIndexed { index, point -> val barH = chartH * point / 100f; val x = slot * index + (slot - barW) / 2f; drawRoundRect(Sage.copy(alpha = .88f), topLeft = Offset(x, chartH - barH), size = Size(barW, barH), cornerRadius = androidx.compose.ui.geometry.CornerRadius(12f)); drawCircle(Color.White.copy(alpha = .55f), 2.5f, Offset(x + barW / 2f, chartH - barH + 10f)) }
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { points.indices.forEach { Text("${it + 1}", color = Muted, fontSize = 10.sp) } }
+}
 
 @Composable
 private fun TypeDonut(records: List<PoopRecord>) { if (records.isEmpty()) { Text("有了几次记录后，这里会显示你的类型分布。", color = Muted, fontSize = 13.sp); return }; val counts = (1..7).map { type -> records.count { it.stoolType == type } }; val colors = listOf(SageDark, Sage, SageLight, Yellow, Peach, Lilac, BlueMist); Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(155.dp), contentAlignment = Alignment.Center) { Canvas(Modifier.fillMaxSize().padding(14.dp)) { val total = counts.sum().coerceAtLeast(1); var start = -90f; counts.forEachIndexed { index, count -> val sweep = 360f * count / total; drawArc(colors[index], start, sweep - 3f, false, style = Stroke(25f)); start += sweep } }; Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("最常见", color = Muted, fontSize = 11.sp); Text("${counts.indices.maxByOrNull { counts[it] }?.plus(1) ?: 4}型", color = SageDark, fontSize = 25.sp, fontWeight = FontWeight.Bold) } }; Spacer(Modifier.width(14.dp)); Column(verticalArrangement = Arrangement.spacedBy(7.dp)) { counts.forEachIndexed { index, count -> Row(verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(9.dp).background(colors[index], CircleShape)); Spacer(Modifier.width(7.dp)); Text("${index + 1}型  $count 次", color = Muted, fontSize = 11.sp) } } } } }
