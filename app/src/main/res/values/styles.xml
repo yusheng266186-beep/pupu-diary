@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.ShunShun" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#86A85D</item>
+        <item name="android:navigationBarColor">#FAF8F1</item>
+        <item name="android:statusBarColor">#FAF8F1</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>
