@@ -22,7 +22,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.DirectionsWalk
+import androidx.compose.material.icons.automirrored.outlined.DirectionsWalk
 import androidx.compose.material.icons.outlined.LocalFlorist
 import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material3.Icon
@@ -63,8 +63,10 @@ import com.shunshun.app.ui.components.streak
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import kotlin.math.roundToInt
 
 private data class ChartBucket(val label: String, val count: Int, val detail: String)
+private data class LifeTrend(val label: String, val basis: String)
 
 @Composable
 fun StatisticsScreen(records: List<PoopRecord>) {
@@ -91,7 +93,13 @@ fun StatisticsScreen(records: List<PoopRecord>) {
         }
         item { SectionCard("排便节奏") { RhythmChart(filtered, range) } }
         item { SectionCard("便便类型分布") { TypeDonut(filtered) } }
-        item { TrendRow(filtered) }
+        item {
+            val trend = calculateLifeTrend(filtered, records, range)
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                TrendRow(filtered, trend)
+                Text("判断依据：${trend.basis}", color = Muted.copy(alpha = .86f), fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(horizontal = 3.dp))
+            }
+        }
         item { Spacer(Modifier.height(22.dp)) }
     }
 }
@@ -188,12 +196,80 @@ private fun TypeDonut(records: List<PoopRecord>) {
 }
 
 @Composable
-private fun TrendRow(records: List<PoopRecord>) {
+private fun TrendRow(records: List<PoopRecord>, trend: LifeTrend) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         TrendCard(Icons.Outlined.WaterDrop, "平均顺畅度", if (records.isEmpty()) "—" else "${records.map { it.smoothness }.average().toInt()}%", Modifier.weight(1f))
         TrendCard(Icons.Outlined.LocalFlorist, "记录天数", "${records.map { dayKey(it.timestamp) }.distinct().size} 天", Modifier.weight(1f))
-        TrendCard(Icons.Outlined.DirectionsWalk, "生活趋势", if (records.isEmpty()) "等待中" else "在变好", Modifier.weight(1f))
+        TrendCard(Icons.AutoMirrored.Outlined.DirectionsWalk, "生活趋势", trend.label, Modifier.weight(1f))
     }
+}
+
+private fun calculateLifeTrend(current: List<PoopRecord>, all: List<PoopRecord>, range: String): LifeTrend {
+    if (current.isEmpty()) return LifeTrend("等待中", "本周期还没有记录，记录几次后会建立你的个人基线")
+    val periodName = periodName(range)
+    val now = Calendar.getInstance()
+    val currentStart = periodStart(range, now)
+    val previousStart = (currentStart.clone() as Calendar).apply {
+        if (range == "年") add(Calendar.MONTH, -12) else add(Calendar.DAY_OF_YEAR, -periodLengthDays(range))
+    }
+    val previous = all.filter { it.timestamp in previousStart.timeInMillis until currentStart.timeInMillis }
+    if (previous.isEmpty()) return LifeTrend("建立基线", "先积累${periodName}的数据，下一周期就能比较变化")
+    val currentScore = wellbeingScore(current, periodLengthDays(range))
+    val previousScore = wellbeingScore(previous, periodLengthDays(range))
+    val delta = currentScore - previousScore
+    val direction = when {
+        delta >= 6 -> "在变好"
+        delta <= -6 -> "需留意"
+        else -> "较稳定"
+    }
+    val signed = if (delta >= 0) "+$delta" else delta.toString()
+    return LifeTrend(direction, "综合顺畅度、心情和记录频率，较${previousPeriodLabel(range)} $signed 分")
+}
+
+private fun periodName(range: String): String = when (range) {
+    "日" -> "天"
+    "月" -> "月"
+    "年" -> "年"
+    else -> "周"
+}
+
+private fun previousPeriodLabel(range: String): String = when (range) {
+    "日" -> "昨天"
+    "月" -> "上月"
+    "年" -> "去年"
+    else -> "上周"
+}
+
+private fun periodStart(range: String, anchor: Calendar): Calendar = (anchor.clone() as Calendar).apply {
+    when (range) {
+        "日" -> {
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }
+        "月" -> {
+            add(Calendar.DAY_OF_YEAR, -29); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }
+        "年" -> {
+            add(Calendar.MONTH, -11); set(Calendar.DAY_OF_MONTH, 1); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }
+        else -> {
+            add(Calendar.DAY_OF_YEAR, -6); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }
+    }
+}
+
+private fun periodLengthDays(range: String): Int = when (range) {
+    "日" -> 1
+    "月" -> 30
+    "年" -> 365
+    else -> 7
+}
+
+private fun wellbeingScore(records: List<PoopRecord>, periodDays: Int): Int {
+    if (records.isEmpty()) return 0
+    val smoothness = records.map { it.smoothness }.average()
+    val mood = records.map { it.mood.coerceIn(0, 4) }.average() / 4.0 * 100.0
+    val frequency = (records.size.toDouble() / periodDays * 100.0).coerceAtMost(100.0)
+    return (smoothness * .55 + mood * .30 + frequency * .15).roundToInt()
 }
 
 @Composable
@@ -207,14 +283,7 @@ private fun TrendCard(icon: androidx.compose.ui.graphics.vector.ImageVector, lab
 
 private fun List<PoopRecord>.filterForRange(range: String): List<PoopRecord> {
     val now = Calendar.getInstance()
-    val start = (now.clone() as Calendar).apply {
-        when (range) {
-            "日" -> { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }
-            "月" -> { add(Calendar.DAY_OF_YEAR, -29); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }
-            "年" -> { add(Calendar.MONTH, -11); set(Calendar.DAY_OF_MONTH, 1); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }
-            else -> { add(Calendar.DAY_OF_YEAR, -6); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }
-        }
-    }.timeInMillis
+    val start = periodStart(range, now).timeInMillis
     return filter { it.timestamp >= start && it.timestamp <= now.timeInMillis }
 }
 

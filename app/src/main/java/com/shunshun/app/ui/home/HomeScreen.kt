@@ -4,14 +4,17 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -34,9 +37,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.withTransform
@@ -84,11 +89,11 @@ fun HomeScreen(records: List<PoopRecord>, onRecord: () -> Unit) {
     var bubble by remember { mutableStateOf(false) }
     var bubbleText by remember { mutableStateOf("今天也要顺顺利利～") }
     var tapped by remember { mutableStateOf(false) }
-    val tapScale by androidx.compose.animation.core.animateFloatAsState(if (tapped) .88f else 1f, tween(160), label = "mascot-tap")
+    val tapScale by animateFloatAsState(if (tapped) .88f else 1f, spring(dampingRatio = .58f, stiffness = 620f), label = "mascot-tap")
     val haptics = rememberAppHaptics()
     val bubbleLines = remember { listOf("今天也要顺顺利利～", "记得多喝水呀！", "肚肚舒服最重要～", "今天吃蔬菜了吗？", "保持好心情～") }
     LaunchedEffect(bubble) { if (bubble) { delay(1_700L); bubble = false } }
-    LaunchedEffect(tapped) { if (tapped) { delay(260L); tapped = false } }
+    LaunchedEffect(tapped) { if (tapped) { delay(620L); tapped = false } }
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         item {
             Spacer(Modifier.height(24.dp))
@@ -111,9 +116,7 @@ fun HomeScreen(records: List<PoopRecord>, onRecord: () -> Unit) {
                     bubble = true
                     haptics(AppHaptic.Light)
                 }) { PoopMascot(112.dp, if (tapped) MascotMood.Excited else MascotMood.Happy) }
-                AnimatedVisibility(visible = tapped, modifier = Modifier.align(Alignment.Center).offset(y = (-104).dp)) {
-                    Text("✦  ✿  ✦", color = Peach, fontSize = 17.sp)
-                }
+                SparkleBurst(tapped)
                 AnimatedVisibility(visible = bubble, modifier = Modifier.align(Alignment.Center).offset(y = (-72).dp)) { Text(bubbleText, color = BrownDark, fontSize = 12.sp, modifier = Modifier.background(Surface, RoundedCornerShape(18.dp)).padding(horizontal = 14.dp, vertical = 9.dp)) }
                 Text("顺顺，今天也要轻松一点", color = SageDark, fontSize = 12.sp, modifier = Modifier.align(Alignment.TopCenter).padding(top = 21.dp))
             }
@@ -132,6 +135,47 @@ fun HomeScreen(records: List<PoopRecord>, onRecord: () -> Unit) {
             Spacer(Modifier.height(22.dp))
         }
     }
+}
+
+@Composable
+private fun BoxScope.SparkleBurst(visible: Boolean) {
+    val progress by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = spring(dampingRatio = .72f, stiffness = 320f),
+        label = "sparkle-burst"
+    )
+    if (progress <= .01f) return
+    Canvas(
+        Modifier.align(Alignment.Center).offset(y = (-8).dp).size(146.dp)
+            .graphicsLayer {
+                alpha = progress
+                val scale = .72f + progress * .28f
+                scaleX = scale
+                scaleY = scale
+                translationY = 18f * (1f - progress)
+            }
+    ) {
+        val alpha = progress.coerceIn(0f, 1f)
+        drawSparkle(Offset(size.width * .20f, size.height * .43f), size.minDimension * .055f, Peach.copy(alpha = alpha))
+        drawFlowerSparkle(Offset(size.width * .50f, size.height * .25f), size.minDimension * .048f, Yellow.copy(alpha = alpha))
+        drawSparkle(Offset(size.width * .81f, size.height * .46f), size.minDimension * .048f, SageDark.copy(alpha = alpha))
+    }
+}
+
+private fun DrawScope.drawSparkle(center: Offset, radius: Float, color: Color) {
+    drawLine(color, Offset(center.x - radius * 1.8f, center.y), Offset(center.x + radius * 1.8f, center.y), radius * .38f, StrokeCap.Round)
+    drawLine(color, Offset(center.x, center.y - radius * 1.8f), Offset(center.x, center.y + radius * 1.8f), radius * .38f, StrokeCap.Round)
+    drawLine(color.copy(alpha = .62f), Offset(center.x - radius * 1.05f, center.y - radius * 1.05f), Offset(center.x + radius * 1.05f, center.y + radius * 1.05f), radius * .28f, StrokeCap.Round)
+    drawLine(color.copy(alpha = .62f), Offset(center.x + radius * 1.05f, center.y - radius * 1.05f), Offset(center.x - radius * 1.05f, center.y + radius * 1.05f), radius * .28f, StrokeCap.Round)
+}
+
+private fun DrawScope.drawFlowerSparkle(center: Offset, radius: Float, color: Color) {
+    repeat(5) { index ->
+        val angle = (index * 72f - 90f) * (Math.PI / 180f)
+        val petal = Offset(center.x + kotlin.math.cos(angle).toFloat() * radius * .72f, center.y + kotlin.math.sin(angle).toFloat() * radius * .72f)
+        drawCircle(color.copy(alpha = .72f), radius * .58f, petal)
+    }
+    drawCircle(Peach.copy(alpha = .94f), radius * .25f, center)
 }
 
 @Composable

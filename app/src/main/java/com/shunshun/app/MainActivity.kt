@@ -20,6 +20,9 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Ask Android to keep this window on a high-refresh display when the device supports it.
+        // This is a preference (not a guarantee): lower-refresh devices will continue to use their native rate.
+        window.attributes = window.attributes.apply { preferredRefreshRate = 120f }
         setContent { ShunShunTheme { ShunShunApp() } }
     }
 }

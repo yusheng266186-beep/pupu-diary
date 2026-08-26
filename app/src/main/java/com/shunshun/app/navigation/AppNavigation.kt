@@ -3,8 +3,6 @@ package com.shunshun.app.navigation
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -74,7 +72,7 @@ fun ShunShunApp() {
     val snack = remember { SnackbarHostState() }
     Scaffold(containerColor = Cream, snackbarHost = { SnackbarHost(snack) }, bottomBar = { AppBottomBar(tab) { tabName = it.name } }) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
-            AnimatedContent(tab, transitionSpec = { (slideInVertically(tween(280)) { it / 18 } + fadeIn(tween(280))) togetherWith (slideOutVertically(tween(220)) { -it / 24 } + fadeOut(tween(180))) }, label = "page") { page ->
+            AnimatedContent(tab, transitionSpec = { (fadeIn(tween(180))) togetherWith (fadeOut(tween(120))) }, label = "page") { page ->
                 when (page) {
                     AppTab.HOME -> HomeScreen(records) { tabName = AppTab.RECORD.name }
                     AppTab.RECORD -> RecordScreen(records, onSaved = { vm.add(it); tabName = AppTab.HOME.name }, onDelete = vm::delete, onUpdate = vm::update)

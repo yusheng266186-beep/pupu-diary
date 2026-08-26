@@ -298,18 +298,25 @@ private fun HistoryList(records: List<PoopRecord>, onDelete: (PoopRecord) -> Uni
     var detail by remember { mutableStateOf<PoopRecord?>(null) }
     var editing by remember { mutableStateOf<PoopRecord?>(null) }
     var confirmDelete by remember { mutableStateOf<PoopRecord?>(null) }
-    val days = remember {
+    val recordDayKeys = records.asSequence().map { dayKey(it.timestamp) }.toSet()
+    val dateKeys = remember(recordDayKeys) {
         val base = Calendar.getInstance()
-        (6 downTo 0).map { (base.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -it) } }
+        val recentDays = (0..89).map { offset ->
+            dayKey((base.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -offset) }.timeInMillis)
+        }
+        (recentDays + recordDayKeys).distinct().sortedDescending()
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
             DayChip("全部", null, selectedDay == null, records.any()) { selectedDay = null }
-            days.forEach { calendar ->
-                val key = dayKey(calendar.timeInMillis)
-                DayChip(SimpleDateFormat("E", Locale.CHINA).format(calendar.time), key, selectedDay == key, records.any { dayKey(it.timestamp) == key }) { selectedDay = key }
+            dateKeys.forEach { key ->
+                DayChip(SimpleDateFormat("E", Locale.CHINA).format(parseDay(key)), key, selectedDay == key, key in recordDayKeys) { selectedDay = key }
             }
         }
+        Text("左右滑动查看更早日期", color = Muted.copy(alpha = .78f), fontSize = 10.sp, modifier = Modifier.padding(start = 3.dp))
         val filtered = selectedDay?.let { key -> records.filter { dayKey(it.timestamp) == key } } ?: records
         Text(if (selectedDay == null) "全部记录" else "${formatDayTitle(selectedDay!!)}的记录", color = Muted, fontSize = 13.sp)
         if (filtered.isEmpty()) EmptyState("这里还空空的～", "完成第一次记录后，它就会住进这里。", MascotMood.Sleepy)

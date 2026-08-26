@@ -53,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.shunshun.app.PoopViewModel
@@ -276,7 +277,7 @@ fun ProfileScreen(records: List<PoopRecord>, vm: PoopViewModel) {
     if (showAbout) {
         HandDrawnDialog(
             title = "关于顺顺",
-            message = "顺顺是一款温柔的个人生活记录工具，帮助你用几秒钟记下身体的小变化。所有记录都保存在本机。\n\n版本 1.9.0",
+            message = "顺顺是一款温柔的个人生活记录工具，帮助你用几秒钟记下身体的小变化。所有记录都保存在本机。\n\n版本 1.10.0",
             confirmLabel = "知道啦",
             dismissLabel = null,
             onDismiss = { showAbout = false },
@@ -373,12 +374,15 @@ private fun wheelNumber(value: Int): String = "%02d".format(java.util.Locale.CHI
 
 @Composable
 private fun ToggleSettingRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, checked: Boolean, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().appClickable(onClick = onClick).padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) { Icon(icon, null, tint = SageDark, modifier = Modifier.size(21.dp)) }
+    Row(Modifier.fillMaxWidth().height(50.dp).appClickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
+        SettingIcon(icon, SageDark, 21.dp)
         Spacer(Modifier.width(13.dp))
         Text(label, color = Ink, fontSize = 14.sp)
         Spacer(Modifier.weight(1f))
-        Text(if (checked) "开启" else "关闭", color = if (checked) SageDark else Muted, fontSize = 12.sp, modifier = Modifier.padding(end = 9.dp))
+        Box(Modifier.width(38.dp), contentAlignment = Alignment.CenterEnd) {
+            Text(if (checked) "开启" else "关闭", color = if (checked) SageDark else Muted, fontSize = 12.sp)
+        }
+        Spacer(Modifier.width(8.dp))
         val knobOffset by animateDpAsState(if (checked) 18.dp else 2.dp, label = "setting-$label")
         Box(Modifier.size(width = 42.dp, height = 24.dp).background(if (checked) Sage.copy(alpha = .72f) else Line, RoundedCornerShape(12.dp))) {
             Box(Modifier.padding(start = knobOffset).size(20.dp).background(if (checked) Color.White else Surface, CircleShape))
@@ -388,13 +392,24 @@ private fun ToggleSettingRow(icon: androidx.compose.ui.graphics.vector.ImageVect
 
 @Composable
 private fun ReminderTimeRow(label: String, time: String, enabled: Boolean, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().appClickable(onClick = onClick).padding(start = 34.dp, top = 5.dp, bottom = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.AccessTime, null, tint = if (enabled) SageDark else Muted, modifier = Modifier.size(16.dp)) }
+    Row(Modifier.fillMaxWidth().height(38.dp).appClickable(onClick = onClick).padding(start = 34.dp), verticalAlignment = Alignment.CenterVertically) {
+        SettingIcon(Icons.Outlined.AccessTime, if (enabled) SageDark else Muted, 16.dp)
         Spacer(Modifier.width(9.dp))
         Text(label, color = Muted, fontSize = 12.sp)
         Spacer(Modifier.weight(1f))
-        Text(time, color = if (enabled) SageDark else Muted, fontSize = 12.sp)
-        Text("›", color = Muted, fontSize = 18.sp, modifier = Modifier.padding(start = 7.dp, end = 4.dp))
+        Box(Modifier.width(47.dp), contentAlignment = Alignment.CenterEnd) {
+            Text(time, color = if (enabled) SageDark else Muted, fontSize = 12.sp)
+        }
+        Box(Modifier.width(23.dp), contentAlignment = Alignment.CenterEnd) {
+            Text("›", color = Muted, fontSize = 18.sp)
+        }
+    }
+}
+
+@Composable
+private fun SettingIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color, iconSize: Dp) {
+    Box(Modifier.size(30.dp), contentAlignment = Alignment.Center) {
+        Icon(icon, null, tint = tint, modifier = Modifier.size(iconSize))
     }
 }
 
