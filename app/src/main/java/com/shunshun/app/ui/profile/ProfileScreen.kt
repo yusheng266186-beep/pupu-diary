@@ -3,11 +3,13 @@ package com.shunshun.app.ui.profile
 import android.net.Uri
 import android.widget.Toast
 import android.content.Context
+import android.app.TimePickerDialog
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.preferencesDataStore
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.FileUpload
@@ -36,6 +39,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.shunshun.app.PoopViewModel
 import com.shunshun.app.data.PoopRecord
 import com.shunshun.app.ui.BrownDark
@@ -66,14 +71,18 @@ import com.shunshun.app.ui.components.ActionRow
 import com.shunshun.app.ui.components.PoopMascot
 import com.shunshun.app.ui.components.SectionCard
 import com.shunshun.app.ui.components.MascotMood
+import com.shunshun.app.data.RECORD_REMINDER
+import com.shunshun.app.data.RECORD_REMINDER_HOUR
+import com.shunshun.app.data.RECORD_REMINDER_MINUTE
+import com.shunshun.app.data.ReminderScheduler
+import com.shunshun.app.data.WATER_REMINDER
+import com.shunshun.app.data.WATER_REMINDER_HOUR
+import com.shunshun.app.data.WATER_REMINDER_MINUTE
+import com.shunshun.app.data.settingsDataStore
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.map
 import org.json.JSONArray
 import org.json.JSONObject
-
-private val Context.settingsDataStore by preferencesDataStore(name = "shunshun_settings")
-private val WATER_REMINDER = booleanPreferencesKey("water_reminder")
-private val RECORD_REMINDER = booleanPreferencesKey("record_reminder")
 
 @Composable
 fun ProfileScreen(records: List<PoopRecord>, vm: PoopViewModel) {
@@ -82,7 +91,42 @@ fun ProfileScreen(records: List<PoopRecord>, vm: PoopViewModel) {
     var confirmClear by remember { mutableStateOf(false) }
     val waterReminder by context.settingsDataStore.data.map { it[WATER_REMINDER] ?: false }.collectAsState(initial = false)
     val recordReminder by context.settingsDataStore.data.map { it[RECORD_REMINDER] ?: false }.collectAsState(initial = false)
+    val waterHour by context.settingsDataStore.data.map { it[WATER_REMINDER_HOUR] ?: 15 }.collectAsState(initial = 15)
+    val waterMinute by context.settingsDataStore.data.map { it[WATER_REMINDER_MINUTE] ?: 0 }.collectAsState(initial = 0)
+    val recordHour by context.settingsDataStore.data.map { it[RECORD_REMINDER_HOUR] ?: 21 }.collectAsState(initial = 21)
+    val recordMinute by context.settingsDataStore.data.map { it[RECORD_REMINDER_MINUTE] ?: 0 }.collectAsState(initial = 0)
     var showAbout by remember { mutableStateOf(false) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) Toast.makeText(context, "未获得通知权限，提醒不会显示", Toast.LENGTH_LONG).show()
+    }
+    LaunchedEffect(waterReminder, waterHour, waterMinute, recordReminder, recordHour, recordMinute) {
+        ReminderScheduler.sync(context, waterReminder, waterHour, waterMinute, recordReminder, recordHour, recordMinute)
+    }
+
+    fun ensureNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    fun pickReminderTime(kind: String) {
+        val isWater = kind == ReminderScheduler.WATER
+        val hour = if (isWater) waterHour else recordHour
+        val minute = if (isWater) waterMinute else recordMinute
+        TimePickerDialog(context, { _, selectedHour, selectedMinute ->
+            scope.launch {
+                context.settingsDataStore.edit { preferences ->
+                    if (isWater) {
+                        preferences[WATER_REMINDER_HOUR] = selectedHour
+                        preferences[WATER_REMINDER_MINUTE] = selectedMinute
+                    } else {
+                        preferences[RECORD_REMINDER_HOUR] = selectedHour
+                        preferences[RECORD_REMINDER_MINUTE] = selectedMinute
+                    }
+                }
+            }
+        }, hour, minute, true).show()
+    }
 
     fun encodeBackup(): String = JSONArray().apply {
         records.forEach { record ->
@@ -145,11 +189,13 @@ fun ProfileScreen(records: List<PoopRecord>, vm: PoopViewModel) {
                     }
                 }
             }.onSuccess { imported ->
-                if (imported.isNotEmpty()) {
-                    vm.addAll(imported)
-                    Toast.makeText(context, "已恢复 ${imported.size} 条记录", Toast.LENGTH_SHORT).show()
+                val existing = records.map { it.timestamp to it.stoolType }.toSet()
+                val fresh = imported.filterNot { (it.timestamp to it.stoolType) in existing }
+                if (fresh.isNotEmpty()) {
+                    vm.addAll(fresh)
+                    Toast.makeText(context, "已恢复 ${fresh.size} 条新记录", Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(context, "备份里没有记录", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, if (imported.isEmpty()) "备份里没有记录" else "备份记录已经存在", Toast.LENGTH_SHORT).show()
                 }
             }.onFailure {
                 Toast.makeText(context, "备份文件格式不正确", Toast.LENGTH_SHORT).show()
@@ -195,14 +241,20 @@ fun ProfileScreen(records: List<PoopRecord>, vm: PoopViewModel) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     ToggleSettingRow(Icons.Outlined.WaterDrop, "喝水提醒", waterReminder) {
                         val next = !waterReminder
+                        if (next) ensureNotificationPermission()
                         scope.launch { context.settingsDataStore.edit { it[WATER_REMINDER] = next } }
+                        ReminderScheduler.schedule(context, ReminderScheduler.WATER, next, waterHour, waterMinute)
                         Toast.makeText(context, if (next) "喝水提醒已开启" else "喝水提醒已关闭", Toast.LENGTH_SHORT).show()
                     }
+                    ReminderTimeRow("喝水时间", formatReminderTime(waterHour, waterMinute), waterReminder) { pickReminderTime(ReminderScheduler.WATER) }
                     ToggleSettingRow(Icons.Outlined.CalendarMonth, "记录提醒", recordReminder) {
                         val next = !recordReminder
+                        if (next) ensureNotificationPermission()
                         scope.launch { context.settingsDataStore.edit { it[RECORD_REMINDER] = next } }
+                        ReminderScheduler.schedule(context, ReminderScheduler.RECORD, next, recordHour, recordMinute)
                         Toast.makeText(context, if (next) "记录提醒已开启" else "记录提醒已关闭", Toast.LENGTH_SHORT).show()
                     }
+                    ReminderTimeRow("记录时间", formatReminderTime(recordHour, recordMinute), recordReminder) { pickReminderTime(ReminderScheduler.RECORD) }
                     ActionRow(Icons.Outlined.Info, "关于顺顺") { showAbout = true }
                 }
             }
@@ -234,7 +286,7 @@ fun ProfileScreen(records: List<PoopRecord>, vm: PoopViewModel) {
         AlertDialog(
             onDismissRequest = { showAbout = false },
             title = { Text("关于顺顺", color = BrownDark) },
-            text = { Text("顺顺是一款温柔的个人生活记录工具，帮助你用几秒钟记下身体的小变化。所有记录都保存在本机。\n\n版本 1.5.0", color = Muted, lineHeight = 21.sp) },
+            text = { Text("顺顺是一款温柔的个人生活记录工具，帮助你用几秒钟记下身体的小变化。所有记录都保存在本机。\n\n版本 1.7.0", color = Muted, lineHeight = 21.sp) },
             confirmButton = { TextButton(onClick = { showAbout = false }) { Text("知道啦", color = SageDark) } },
             containerColor = Cream
         )
@@ -255,3 +307,17 @@ private fun ToggleSettingRow(icon: androidx.compose.ui.graphics.vector.ImageVect
         }
     }
 }
+
+@Composable
+private fun ReminderTimeRow(label: String, time: String, enabled: Boolean, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 34.dp, top = 5.dp, bottom = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Outlined.AccessTime, null, tint = if (enabled) SageDark else Muted, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(9.dp))
+        Text(label, color = Muted, fontSize = 12.sp)
+        Spacer(Modifier.weight(1f))
+        Text(time, color = if (enabled) SageDark else Muted, fontSize = 12.sp)
+        Text("›", color = Muted, fontSize = 18.sp, modifier = Modifier.padding(start = 7.dp, end = 4.dp))
+    }
+}
+
+private fun formatReminderTime(hour: Int, minute: Int): String = "%02d:%02d".format(java.util.Locale.CHINA, hour.coerceIn(0, 23), minute.coerceIn(0, 59))

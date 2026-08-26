@@ -15,6 +15,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -30,7 +34,12 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -71,13 +80,14 @@ import com.shunshun.app.ui.components.SoftnessSlider
 import com.shunshun.app.ui.components.StoolIcon
 import com.shunshun.app.ui.components.SuccessOverlay
 import com.shunshun.app.ui.components.dayKey
+import com.shunshun.app.ui.components.formatDate
 import com.shunshun.app.ui.components.rememberAppHaptics
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
 @Composable
-fun RecordScreen(records: List<PoopRecord>, onSaved: (PoopRecord) -> Unit, onDelete: (PoopRecord) -> Unit) {
+fun RecordScreen(records: List<PoopRecord>, onSaved: (PoopRecord) -> Unit, onDelete: (PoopRecord) -> Unit, onUpdate: (PoopRecord) -> Unit) {
     var mode by rememberSaveable { mutableStateOf("记录一次") }
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
@@ -87,7 +97,7 @@ fun RecordScreen(records: List<PoopRecord>, onSaved: (PoopRecord) -> Unit, onDel
             Spacer(Modifier.height(12.dp))
             SegmentedControl(mode, listOf("记录一次", "历史记录")) { mode = it }
         }
-        if (mode == "历史记录") item { HistoryList(records, onDelete) } else item { RecordForm(onSaved) }
+        if (mode == "历史记录") item { HistoryList(records, onDelete, onUpdate) } else item { RecordForm(onSaved) }
         item { Spacer(Modifier.height(24.dp)) }
     }
 }
@@ -197,8 +207,10 @@ private fun DurationRow(value: Int, onChange: (Int) -> Unit) {
 
 @Composable
 private fun StepperButton(icon: androidx.compose.ui.graphics.vector.ImageVector, enabled: Boolean, onClick: () -> Unit) {
-    Box(Modifier.size(34.dp).background(if (enabled) Meadow else Line.copy(alpha = .45f), CircleShape).clickable(enabled = enabled, onClick = onClick), contentAlignment = Alignment.Center) {
-        Icon(icon, null, tint = if (enabled) SageDark else Muted, modifier = Modifier.size(17.dp))
+    Box(Modifier.size(48.dp).clickable(enabled = enabled, onClick = onClick), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(34.dp).background(if (enabled) Meadow else Line.copy(alpha = .45f), CircleShape), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = if (enabled) SageDark else Muted, modifier = Modifier.size(17.dp))
+        }
     }
 }
 
@@ -231,9 +243,13 @@ private fun NoteRow(value: String, onChange: (String) -> Unit) {
 }
 
 @Composable
-private fun HistoryList(records: List<PoopRecord>, onDelete: (PoopRecord) -> Unit) {
+@OptIn(ExperimentalMaterial3Api::class)
+private fun HistoryList(records: List<PoopRecord>, onDelete: (PoopRecord) -> Unit, onUpdate: (PoopRecord) -> Unit) {
     val latest = records.firstOrNull()?.timestamp ?: System.currentTimeMillis()
     var selectedDay by rememberSaveable { mutableStateOf(if (records.isEmpty()) null else dayKey(latest)) }
+    var detail by remember { mutableStateOf<PoopRecord?>(null) }
+    var editing by remember { mutableStateOf<PoopRecord?>(null) }
+    var confirmDelete by remember { mutableStateOf<PoopRecord?>(null) }
     val days = remember {
         val base = Calendar.getInstance()
         (6 downTo 0).map { (base.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -it) } }
@@ -249,8 +265,97 @@ private fun HistoryList(records: List<PoopRecord>, onDelete: (PoopRecord) -> Uni
         val filtered = selectedDay?.let { key -> records.filter { dayKey(it.timestamp) == key } } ?: records
         Text(if (selectedDay == null) "全部记录" else "${formatDayTitle(selectedDay!!)}的记录", color = Muted, fontSize = 13.sp)
         if (filtered.isEmpty()) EmptyState("这里还空空的～", "完成第一次记录后，它就会住进这里。", MascotMood.Sleepy)
-        else filtered.forEach { HistoryCard(it, onDelete) }
+        else filtered.forEach { record -> HistoryCard(record, onDelete) { detail = record } }
     }
+    val selected = detail
+    if (selected != null) {
+        ModalBottomSheet(
+            onDismissRequest = { detail = null },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = Cream
+        ) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(72.dp).background(Meadow, CircleShape), contentAlignment = Alignment.Center) { StoolIcon(selected.stoolType, 48.dp) }
+                    Spacer(Modifier.width(15.dp))
+                    Column {
+                        Text("记录详情", color = BrownDark, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+                        Text(formatDate(selected.timestamp), color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+                DetailLine("便便形状", "${selected.stoolType}型")
+                DetailLine("今天的感觉", com.shunshun.app.ui.components.moodName(selected.mood))
+                DetailLine("顺畅度", "${selected.smoothness}%")
+                selected.durationMinutes?.let { DetailLine("排便时长", "$it 分钟") }
+                if (selected.abdominalPain || selected.straining || selected.incompleteFeeling) {
+                    val notes = buildList { if (selected.abdominalPain) add("肚肚不舒服"); if (selected.straining) add("今天有点费力"); if (selected.incompleteFeeling) add("感觉没有排干净") }
+                    DetailLine("身体备注", notes.joinToString("、"))
+                }
+                if (selected.note.isNotBlank()) DetailLine("随手记", selected.note)
+                PrimaryButton("编辑这条记录") { editing = selected; detail = null }
+                TextButton(onClick = { confirmDelete = selected; detail = null }, modifier = Modifier.fillMaxWidth()) { Text("删除这条记录", color = Peach) }
+                Spacer(Modifier.height(14.dp))
+            }
+        }
+    }
+    editing?.let { record -> EditRecordDialog(record, onDismiss = { editing = null }) { updated -> onUpdate(updated); editing = null } }
+    confirmDelete?.let { record ->
+        AlertDialog(
+            onDismissRequest = { confirmDelete = null },
+            title = { Text("确定删除这条记录吗？") },
+            text = { Text("删除后无法恢复。") },
+            confirmButton = { TextButton(onClick = { onDelete(record); confirmDelete = null }) { Text("删除", color = Peach) } },
+            dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("取消", color = SageDark) } },
+            containerColor = Cream
+        )
+    }
+}
+
+@Composable
+private fun DetailLine(label: String, value: String) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Text(label, color = Muted, fontSize = 13.sp, modifier = Modifier.width(84.dp))
+        Text(value, color = Ink, fontSize = 14.sp, modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun EditRecordDialog(record: PoopRecord, onDismiss: () -> Unit, onSave: (PoopRecord) -> Unit) {
+    var stool by remember(record.id) { mutableIntStateOf(record.stoolType) }
+    var mood by remember(record.id) { mutableIntStateOf(record.mood) }
+    var smoothness by remember(record.id) { mutableIntStateOf(record.smoothness) }
+    var duration by remember(record.id) { mutableIntStateOf(record.durationMinutes ?: 6) }
+    var abdominalPain by remember(record.id) { mutableStateOf(record.abdominalPain) }
+    var straining by remember(record.id) { mutableStateOf(record.straining) }
+    var incomplete by remember(record.id) { mutableStateOf(record.incompleteFeeling) }
+    var note by remember(record.id) { mutableStateOf(record.note) }
+    val haptics = rememberAppHaptics()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("编辑记录", color = BrownDark) },
+        text = {
+            Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("便便形状", color = Muted, fontSize = 12.sp)
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    (1..7).forEach { type ->
+                        Box(Modifier.size(50.dp).background(if (stool == type) SageLight else Surface, RoundedCornerShape(14.dp)).border(1.dp, if (stool == type) Sage else Line, RoundedCornerShape(14.dp)).clickable { stool = type; haptics(AppHaptic.Selection) }, contentAlignment = Alignment.Center) { StoolIcon(type, 32.dp) }
+                    }
+                }
+                Text("今天的感觉", color = Muted, fontSize = 12.sp)
+                MoodSelector(mood) { mood = it }
+                Text("顺畅度  $smoothness%", color = Muted, fontSize = 12.sp)
+                SoftnessSlider(smoothness) { smoothness = it }
+                DurationRow(duration) { duration = it }
+                ToggleRow(Icons.Outlined.Info, "肚肚不舒服", abdominalPain) { abdominalPain = !abdominalPain }
+                ToggleRow(Icons.Outlined.Info, "今天有点费力", straining) { straining = !straining }
+                ToggleRow(Icons.Outlined.Info, "感觉没有排干净", incomplete) { incomplete = !incomplete }
+                NoteRow(note) { note = it }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(record.copy(stoolType = stool, mood = mood, smoothness = smoothness, durationMinutes = duration, abdominalPain = abdominalPain, straining = straining, incompleteFeeling = incomplete, note = note.trim())) }) { Text("保存", color = SageDark) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消", color = Muted) } },
+        containerColor = Cream
+    )
 }
 
 @Composable

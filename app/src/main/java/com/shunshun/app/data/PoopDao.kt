@@ -4,12 +4,14 @@ import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PoopDao {
     @Insert suspend fun insert(record: PoopRecord)
     @Insert suspend fun insertAll(records: List<PoopRecord>)
+    @Update suspend fun update(record: PoopRecord)
     @Delete suspend fun delete(record: PoopRecord)
     @Query("SELECT * FROM poop_records ORDER BY timestamp DESC")
     fun observeAll(): Flow<List<PoopRecord>>

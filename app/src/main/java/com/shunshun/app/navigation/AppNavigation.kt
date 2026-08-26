@@ -45,6 +45,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.shunshun.app.PoopViewModel
 import com.shunshun.app.PoopViewModelFactory
 import com.shunshun.app.data.AppDatabase
+import com.shunshun.app.data.PoopRepository
 import com.shunshun.app.ui.Cream
 import com.shunshun.app.ui.Line
 import com.shunshun.app.ui.Muted
@@ -65,7 +66,8 @@ enum class AppTab(val title: String) { HOME("首页"), RECORD("记录"), STATS("
 fun ShunShunApp() {
     val context = LocalContext.current
     val database = remember { AppDatabase.get(context) }
-    val vm: PoopViewModel = viewModel(factory = PoopViewModelFactory(database.poopDao()))
+    val repository = remember { PoopRepository(database.poopDao()) }
+    val vm: PoopViewModel = viewModel(factory = PoopViewModelFactory(repository))
     val records by vm.records.collectAsState()
     var tabName by rememberSaveable { mutableStateOf(AppTab.HOME.name) }
     val tab = AppTab.valueOf(tabName)
@@ -75,7 +77,7 @@ fun ShunShunApp() {
             AnimatedContent(tab, transitionSpec = { (slideInVertically(tween(280)) { it / 18 } + fadeIn(tween(280))) togetherWith (slideOutVertically(tween(220)) { -it / 24 } + fadeOut(tween(180))) }, label = "page") { page ->
                 when (page) {
                     AppTab.HOME -> HomeScreen(records) { tabName = AppTab.RECORD.name }
-                    AppTab.RECORD -> RecordScreen(records, onSaved = { vm.add(it); tabName = AppTab.HOME.name }, onDelete = vm::delete)
+                    AppTab.RECORD -> RecordScreen(records, onSaved = { vm.add(it); tabName = AppTab.HOME.name }, onDelete = vm::delete, onUpdate = vm::update)
                     AppTab.STATS -> StatisticsScreen(records)
                     AppTab.PROFILE -> ProfileScreen(records, vm)
                 }
