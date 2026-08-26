@@ -57,6 +57,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shunshun.app.data.PoopRecord
+import com.shunshun.app.ui.BlueMist
+import com.shunshun.app.ui.Brown
 import com.shunshun.app.ui.BrownDark
 import com.shunshun.app.ui.Cream
 import com.shunshun.app.ui.Ink
@@ -68,6 +70,7 @@ import com.shunshun.app.ui.Sage
 import com.shunshun.app.ui.SageDark
 import com.shunshun.app.ui.SageLight
 import com.shunshun.app.ui.Surface
+import com.shunshun.app.ui.Yellow
 import com.shunshun.app.ui.components.AppHaptic
 import com.shunshun.app.ui.components.EmptyState
 import com.shunshun.app.ui.components.HistoryCard
@@ -80,6 +83,7 @@ import com.shunshun.app.ui.components.SoftnessSlider
 import com.shunshun.app.ui.components.StoolIcon
 import com.shunshun.app.ui.components.SuccessOverlay
 import com.shunshun.app.ui.components.dayKey
+import com.shunshun.app.ui.components.colorName
 import com.shunshun.app.ui.components.formatDate
 import com.shunshun.app.ui.components.rememberAppHaptics
 import java.text.SimpleDateFormat
@@ -105,6 +109,7 @@ fun RecordScreen(records: List<PoopRecord>, onSaved: (PoopRecord) -> Unit, onDel
 @Composable
 private fun RecordForm(onSaved: (PoopRecord) -> Unit) {
     var stool by rememberSaveable { mutableIntStateOf(0) }
+    var colorType by rememberSaveable { mutableIntStateOf(-1) }
     var mood by rememberSaveable { mutableIntStateOf(3) }
     var smoothness by rememberSaveable { mutableIntStateOf(72) }
     var duration by rememberSaveable { mutableIntStateOf(6) }
@@ -156,6 +161,10 @@ private fun RecordForm(onSaved: (PoopRecord) -> Unit) {
                 }
             }
         }
+        SectionCard("便便颜色（可选）") {
+            ColorSelector(colorType.takeIf { it >= 0 }) { colorType = it ?: -1 }
+            Text("只做生活日记，不用于健康判断", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 9.dp))
+        }
         SectionCard("今天的感觉") { MoodSelector(mood) { mood = it } }
         SectionCard("顺畅度  $smoothness%") { SoftnessSlider(smoothness) { smoothness = it } }
         Row(Modifier.fillMaxWidth().clickable { more = !more }.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -182,13 +191,53 @@ private fun RecordForm(onSaved: (PoopRecord) -> Unit) {
                 error = true
                 haptics(AppHaptic.Warning)
             } else {
-                pending = PoopRecord(stoolType = stool, mood = mood, smoothness = smoothness, durationMinutes = duration, abdominalPain = abdominalPain, straining = straining, incompleteFeeling = incomplete, note = note.trim())
+                pending = PoopRecord(stoolType = stool, colorType = colorType.takeIf { it >= 0 }, mood = mood, smoothness = smoothness, durationMinutes = duration, abdominalPain = abdominalPain, straining = straining, incompleteFeeling = incomplete, note = note.trim())
                 saved = true
                 haptics(AppHaptic.Success)
             }
         }
         if (error) Text("先选择一下便便类型吧～", color = Peach, fontSize = 12.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         AnimatedVisibility(saved) { SuccessOverlay() }
+    }
+}
+
+private data class ColorChoice(val index: Int, val label: String, val color: Color)
+
+private val colorChoices = listOf(
+    ColorChoice(-1, "不记录", Surface),
+    ColorChoice(0, "暖棕", Brown),
+    ColorChoice(1, "浅棕", Color(0xFFC99B72)),
+    ColorChoice(2, "橙黄", Yellow),
+    ColorChoice(3, "米黄", Color(0xFFE9D8B8)),
+    ColorChoice(4, "偏绿", Sage),
+    ColorChoice(5, "偏灰", BlueMist)
+)
+
+@Composable
+private fun ColorSelector(selected: Int?, onSelect: (Int?) -> Unit) {
+    val haptics = rememberAppHaptics()
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+        colorChoices.forEach { choice ->
+            val chosen = selected == choice.index || (choice.index == -1 && selected == null)
+            Column(
+                Modifier.width(62.dp).clickable {
+                    onSelect(choice.index.takeIf { it >= 0 })
+                    haptics(AppHaptic.Selection)
+                },
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    Modifier.size(43.dp)
+                        .background(choice.color.copy(alpha = if (choice.index == -1) .34f else .62f), CircleShape)
+                        .border(1.5.dp, if (chosen) SageDark else Line, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (choice.index == -1) Text("—", color = Muted, fontSize = 17.sp)
+                    else Box(Modifier.size(18.dp).background(choice.color, CircleShape))
+                }
+                Text(choice.label, color = if (chosen) SageDark else Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 5.dp))
+            }
+        }
     }
 }
 
@@ -284,6 +333,7 @@ private fun HistoryList(records: List<PoopRecord>, onDelete: (PoopRecord) -> Uni
                     }
                 }
                 DetailLine("便便形状", "${selected.stoolType}型")
+                selected.colorType?.let { DetailLine("颜色", colorName(it)) }
                 DetailLine("今天的感觉", com.shunshun.app.ui.components.moodName(selected.mood))
                 DetailLine("顺畅度", "${selected.smoothness}%")
                 selected.durationMinutes?.let { DetailLine("排便时长", "$it 分钟") }
@@ -322,6 +372,7 @@ private fun DetailLine(label: String, value: String) {
 @Composable
 private fun EditRecordDialog(record: PoopRecord, onDismiss: () -> Unit, onSave: (PoopRecord) -> Unit) {
     var stool by remember(record.id) { mutableIntStateOf(record.stoolType) }
+    var colorType by remember(record.id) { mutableIntStateOf(record.colorType ?: -1) }
     var mood by remember(record.id) { mutableIntStateOf(record.mood) }
     var smoothness by remember(record.id) { mutableIntStateOf(record.smoothness) }
     var duration by remember(record.id) { mutableIntStateOf(record.durationMinutes ?: 6) }
@@ -341,6 +392,8 @@ private fun EditRecordDialog(record: PoopRecord, onDismiss: () -> Unit, onSave: 
                         Box(Modifier.size(50.dp).background(if (stool == type) SageLight else Surface, RoundedCornerShape(14.dp)).border(1.dp, if (stool == type) Sage else Line, RoundedCornerShape(14.dp)).clickable { stool = type; haptics(AppHaptic.Selection) }, contentAlignment = Alignment.Center) { StoolIcon(type, 32.dp) }
                     }
                 }
+                Text("便便颜色", color = Muted, fontSize = 12.sp)
+                ColorSelector(colorType.takeIf { it >= 0 }) { colorType = it ?: -1 }
                 Text("今天的感觉", color = Muted, fontSize = 12.sp)
                 MoodSelector(mood) { mood = it }
                 Text("顺畅度  $smoothness%", color = Muted, fontSize = 12.sp)
@@ -352,7 +405,7 @@ private fun EditRecordDialog(record: PoopRecord, onDismiss: () -> Unit, onSave: 
                 NoteRow(note) { note = it }
             }
         },
-        confirmButton = { TextButton(onClick = { onSave(record.copy(stoolType = stool, mood = mood, smoothness = smoothness, durationMinutes = duration, abdominalPain = abdominalPain, straining = straining, incompleteFeeling = incomplete, note = note.trim())) }) { Text("保存", color = SageDark) } },
+        confirmButton = { TextButton(onClick = { onSave(record.copy(stoolType = stool, colorType = colorType.takeIf { it >= 0 }, mood = mood, smoothness = smoothness, durationMinutes = duration, abdominalPain = abdominalPain, straining = straining, incompleteFeeling = incomplete, note = note.trim())) }) { Text("保存", color = SageDark) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消", color = Muted) } },
         containerColor = Cream
     )

@@ -11,6 +11,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.datastore.preferences.core.edit
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
@@ -52,6 +54,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -78,6 +81,7 @@ import com.shunshun.app.data.ReminderScheduler
 import com.shunshun.app.data.WATER_REMINDER
 import com.shunshun.app.data.WATER_REMINDER_HOUR
 import com.shunshun.app.data.WATER_REMINDER_MINUTE
+import com.shunshun.app.data.NICKNAME
 import com.shunshun.app.data.settingsDataStore
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.map
@@ -96,6 +100,9 @@ fun ProfileScreen(records: List<PoopRecord>, vm: PoopViewModel) {
     val recordHour by context.settingsDataStore.data.map { it[RECORD_REMINDER_HOUR] ?: 21 }.collectAsState(initial = 21)
     val recordMinute by context.settingsDataStore.data.map { it[RECORD_REMINDER_MINUTE] ?: 0 }.collectAsState(initial = 0)
     var showAbout by remember { mutableStateOf(false) }
+    var showNickname by remember { mutableStateOf(false) }
+    val nickname by context.settingsDataStore.data.map { it[NICKNAME] ?: "小顺顺" }.collectAsState(initial = "小顺顺")
+    var nicknameDraft by remember(nickname) { mutableStateOf(nickname) }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) Toast.makeText(context, "未获得通知权限，提醒不会显示", Toast.LENGTH_LONG).show()
     }
@@ -133,6 +140,7 @@ fun ProfileScreen(records: List<PoopRecord>, vm: PoopViewModel) {
             put(JSONObject().apply {
                 put("timestamp", record.timestamp)
                 put("stoolType", record.stoolType)
+                put("colorType", record.colorType ?: JSONObject.NULL)
                 put("mood", record.mood)
                 put("smoothness", record.smoothness)
                 put("durationMinutes", record.durationMinutes ?: JSONObject.NULL)
@@ -177,6 +185,7 @@ fun ProfileScreen(records: List<PoopRecord>, vm: PoopViewModel) {
                             PoopRecord(
                                 timestamp = item.getLong("timestamp"),
                                 stoolType = item.getInt("stoolType").coerceIn(1, 7),
+                                colorType = if (item.isNull("colorType")) null else item.optInt("colorType").coerceIn(0, 5),
                                 mood = item.optInt("mood", 3).coerceIn(0, 4),
                                 smoothness = item.optInt("smoothness", 72).coerceIn(0, 100),
                                 durationMinutes = if (item.isNull("durationMinutes")) null else item.optInt("durationMinutes"),
@@ -213,14 +222,14 @@ fun ProfileScreen(records: List<PoopRecord>, vm: PoopViewModel) {
             Text("把每一次记录，都好好放在身边", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 5.dp))
         }
         item {
-            SectionCard("顺顺用户") {
+            SectionCard("顺顺用户", Modifier.clickable { nicknameDraft = nickname; showNickname = true }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(82.dp).background(Meadow, CircleShape), contentAlignment = Alignment.Center) {
                         PoopMascot(64.dp, MascotMood.Happy)
                     }
                     Spacer(Modifier.width(16.dp))
                     Column {
-                        Text("小顺顺", color = BrownDark, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                        Text(nickname, color = BrownDark, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
                         Text("本地生活记录 · ${records.size} 条", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 5.dp))
                         Text("今天也要轻轻松松呀", color = SageDark, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
                     }
@@ -286,8 +295,37 @@ fun ProfileScreen(records: List<PoopRecord>, vm: PoopViewModel) {
         AlertDialog(
             onDismissRequest = { showAbout = false },
             title = { Text("关于顺顺", color = BrownDark) },
-            text = { Text("顺顺是一款温柔的个人生活记录工具，帮助你用几秒钟记下身体的小变化。所有记录都保存在本机。\n\n版本 1.7.0", color = Muted, lineHeight = 21.sp) },
+            text = { Text("顺顺是一款温柔的个人生活记录工具，帮助你用几秒钟记下身体的小变化。所有记录都保存在本机。\n\n版本 1.8.0", color = Muted, lineHeight = 21.sp) },
             confirmButton = { TextButton(onClick = { showAbout = false }) { Text("知道啦", color = SageDark) } },
+            containerColor = Cream
+        )
+    }
+
+    if (showNickname) {
+        AlertDialog(
+            onDismissRequest = { showNickname = false },
+            title = { Text("给自己起个昵称", color = BrownDark) },
+            text = {
+                BasicTextField(
+                    value = nicknameDraft,
+                    onValueChange = { nicknameDraft = it.take(12) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().background(Cream, RoundedCornerShape(14.dp)).border(1.dp, Line, RoundedCornerShape(14.dp)).padding(horizontal = 13.dp, vertical = 12.dp),
+                    textStyle = TextStyle(color = Ink, fontSize = 16.sp),
+                    decorationBox = { field ->
+                        if (nicknameDraft.isBlank()) Text("例如：小顺顺", color = Muted, fontSize = 16.sp)
+                        field()
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val next = nicknameDraft.trim().ifBlank { "小顺顺" }
+                    scope.launch { context.settingsDataStore.edit { it[NICKNAME] = next } }
+                    showNickname = false
+                }) { Text("保存", color = SageDark) }
+            },
+            dismissButton = { TextButton(onClick = { showNickname = false }) { Text("取消", color = Muted) } },
             containerColor = Cream
         )
     }

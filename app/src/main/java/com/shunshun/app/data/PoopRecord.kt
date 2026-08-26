@@ -8,6 +8,8 @@ data class PoopRecord(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val timestamp: Long = System.currentTimeMillis(),
     val stoolType: Int,
+    /** Optional diary-only color note. It is intentionally separate from stool shape. */
+    val colorType: Int? = null,
     val mood: Int,
     val smoothness: Int,
     val durationMinutes: Int? = null,
