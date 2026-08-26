@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Backup.export 兜底路径：getExternalFilesDir(DIRECTORY_DOCUMENTS) -->
+    <external-files-path name="documents" path="Documents/" />
+    <!-- Backup.export 最终兜底：filesDir -->
+    <files-path name="files" path="." />
+</paths>
