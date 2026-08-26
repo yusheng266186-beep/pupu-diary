@@ -142,8 +142,8 @@ private fun RhythmChart(records: List<PoopRecord>, range: String) {
                 if (bucket.count > 0) drawCircle(Color.White.copy(alpha = .58f), 2.5f, Offset(x + barW / 2f, chartH - barH + 10f))
             }
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 7.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            buckets.forEach { Text(it.label, color = Muted, fontSize = 10.sp) }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 3.dp)) {
+            buckets.forEach { Text(it.label, color = Muted, fontSize = 10.sp, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
         }
     }
 }

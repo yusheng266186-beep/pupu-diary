@@ -95,7 +95,18 @@ fun MoodFace(index: Int, selected: Boolean, onClick: () -> Unit) {
     val faceColors = listOf(Color(0xFFB8D6B8), Color(0xFFF0B8AE), Color(0xFFB8CCD9), Color(0xFFF1B58B), Color(0xFFF2D48A))
     val faceScale by animateFloatAsState(if (selected) 1.08f else 1f, androidx.compose.animation.core.spring(dampingRatio = .7f), label = "mood-$index")
     Column(Modifier.width(58.dp).scale(faceScale).clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(48.dp).background(faceColors[index].copy(alpha = if (selected) 1f else .45f), CircleShape).border(if (selected) 2.dp else 0.dp, if (selected) SageDark else Color.Transparent, CircleShape), contentAlignment = Alignment.Center) { Canvas(Modifier.fillMaxSize().padding(12.dp)) { val ink = BrownDark.copy(alpha = .75f); drawCircle(ink, 2.2f, Offset(size.width * .30f, size.height * .38f)); drawCircle(ink, 2.2f, Offset(size.width * .70f, size.height * .38f)); if (index < 2) drawArc(ink, 20f, 140f, false, topLeft = Offset(size.width * .28f, size.height * .48f), size = Size(size.width * .44f, size.height * .28f), style = Stroke(2f)) else drawArc(ink, 200f, 140f, false, topLeft = Offset(size.width * .28f, size.height * .38f), size = Size(size.width * .44f, size.height * .28f), style = Stroke(2f)) } }
+        Box(Modifier.size(48.dp).background(faceColors[index].copy(alpha = if (selected) 1f else .45f), CircleShape).border(if (selected) 2.dp else 0.dp, if (selected) SageDark else Color.Transparent, CircleShape), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.fillMaxSize().padding(12.dp)) {
+                val ink = BrownDark.copy(alpha = .75f)
+                drawCircle(ink, 2.2f, Offset(size.width * .30f, size.height * .38f))
+                drawCircle(ink, 2.2f, Offset(size.width * .70f, size.height * .38f))
+                when (index) {
+                    0, 1 -> drawArc(ink, 200f, 140f, false, topLeft = Offset(size.width * .28f, size.height * .38f), size = Size(size.width * .44f, size.height * .28f), style = Stroke(2f))
+                    2 -> drawLine(ink, Offset(size.width * .35f, size.height * .62f), Offset(size.width * .65f, size.height * .62f), 2f, StrokeCap.Round)
+                    else -> drawArc(ink, 20f, 140f, false, topLeft = Offset(size.width * .28f, size.height * .48f), size = Size(size.width * .44f, size.height * .28f), style = Stroke(2f))
+                }
+            }
+        }
         Text(listOf("很难受", "不舒服", "一般", "舒服", "超舒服")[index], color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 5.dp))
     }
 }
@@ -103,12 +114,36 @@ fun MoodFace(index: Int, selected: Boolean, onClick: () -> Unit) {
 @Composable
 fun NavGlyph(tab: AppTab, tint: Color) {
     Canvas(Modifier.size(22.dp)) {
-        val stroke = Stroke(width = 2.2f, cap = StrokeCap.Round)
+        val w = size.width
+        val h = size.height
+        val strokeWidth = size.minDimension * .095f
+        val stroke = Stroke(width = strokeWidth, cap = StrokeCap.Round)
         when (tab) {
-            AppTab.HOME -> { val house = Path().apply { moveTo(2f, 10f); lineTo(size.width / 2f, 3f); lineTo(size.width - 2f, 10f); moveTo(4f, 9f); lineTo(4f, size.height - 2f); lineTo(size.width - 4f, size.height - 2f); lineTo(size.width - 4f, 9f) }; drawPath(house, tint, style = stroke); drawLine(tint, Offset(size.width / 2f, size.height - 2f), Offset(size.width / 2f, size.height - 8f), 2.2f, StrokeCap.Round) }
-            AppTab.RECORD -> { drawRoundRect(tint, topLeft = Offset(4f, 3f), size = Size(size.width - 8f, size.height - 5f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f), style = stroke); drawLine(tint, Offset(8f, 8f), Offset(size.width - 7f, 8f), 2f, StrokeCap.Round); drawLine(tint, Offset(8f, 13f), Offset(size.width - 7f, 13f), 2f, StrokeCap.Round) }
-            AppTab.STATS -> { drawLine(tint, Offset(3f, size.height - 3f), Offset(size.width - 3f, size.height - 3f), 2.2f, StrokeCap.Round); drawRoundRect(tint, topLeft = Offset(5f, 10f), size = Size(3f, 7f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(1.5f)); drawRoundRect(tint, topLeft = Offset(10f, 6f), size = Size(3f, 11f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(1.5f)); drawRoundRect(tint, topLeft = Offset(15f, 3f), size = Size(3f, 14f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(1.5f)) }
-            AppTab.PROFILE -> { drawCircle(tint, 5f, Offset(size.width / 2f, 6f), style = stroke); drawArc(tint, 200f, 140f, false, topLeft = Offset(4f, 10f), size = Size(size.width - 8f, 11f), style = stroke) }
+            AppTab.HOME -> {
+                val house = Path().apply {
+                    moveTo(w * .10f, h * .44f); lineTo(w * .50f, h * .10f); lineTo(w * .90f, h * .44f)
+                    moveTo(w * .21f, h * .39f); lineTo(w * .21f, h * .88f); lineTo(w * .79f, h * .88f); lineTo(w * .79f, h * .39f)
+                }
+                drawPath(house, tint, style = stroke)
+                drawRoundRect(tint, topLeft = Offset(w * .42f, h * .61f), size = Size(w * .16f, h * .27f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .035f), style = stroke)
+            }
+            AppTab.RECORD -> {
+                drawRoundRect(tint, topLeft = Offset(w * .18f, h * .15f), size = Size(w * .64f, h * .72f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .10f), style = stroke)
+                drawRoundRect(tint, topLeft = Offset(w * .34f, h * .08f), size = Size(w * .32f, h * .18f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .06f), style = stroke)
+                drawLine(tint, Offset(w * .30f, h * .42f), Offset(w * .70f, h * .42f), strokeWidth, StrokeCap.Round)
+                drawLine(tint, Offset(w * .30f, h * .61f), Offset(w * .60f, h * .61f), strokeWidth, StrokeCap.Round)
+                drawLine(tint, Offset(w * .30f, h * .75f), Offset(w * .53f, h * .75f), strokeWidth, StrokeCap.Round)
+            }
+            AppTab.STATS -> {
+                drawLine(tint, Offset(w * .14f, h * .86f), Offset(w * .88f, h * .86f), strokeWidth, StrokeCap.Round)
+                drawRoundRect(tint, topLeft = Offset(w * .23f, h * .55f), size = Size(w * .13f, h * .31f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .05f))
+                drawRoundRect(tint, topLeft = Offset(w * .44f, h * .36f), size = Size(w * .13f, h * .50f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .05f))
+                drawRoundRect(tint, topLeft = Offset(w * .65f, h * .18f), size = Size(w * .13f, h * .68f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .05f))
+            }
+            AppTab.PROFILE -> {
+                drawCircle(tint, w * .16f, Offset(w * .50f, h * .27f), style = stroke)
+                drawArc(tint, 200f, 140f, false, topLeft = Offset(w * .16f, h * .47f), size = Size(w * .68f, h * .40f), style = stroke)
+            }
         }
     }
 }

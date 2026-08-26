@@ -111,9 +111,9 @@ private fun HomeGarden() {
         drawCircle(Yellow.copy(alpha = .94f), 29f, Offset(w - 45f, 46f + sunBob))
         drawCloud(45f + cloudDrift, 65f, 1f)
         drawOval(Color(0xFFDCE8C5), topLeft = Offset(-w * .08f, h * .53f), size = Size(w * 1.16f, h * .57f)); drawOval(Color(0xFFC9DDAA), topLeft = Offset(-w * .14f, h * .74f), size = Size(w * 1.28f, h * .42f))
-        withTransform({ rotate(leftLeaf, pivot = Offset(24f, h - 8f)) }) { plant(24f, h - 8f, -1f) }
-        withTransform({ rotate(rightLeaf, pivot = Offset(w - 25f, h - 12f)) }) { plant(w - 25f, h - 12f, 1f) }
-        plant(50f, h - 21f, -1f); plant(w - 53f, h - 25f, 1f)
+        withTransform({ rotate(leftLeaf, pivot = Offset(22f, h - 6f)) }) { sidePlant(22f, h - 6f, -1f) }
+        withTransform({ rotate(rightLeaf, pivot = Offset(w - 22f, h - 10f)) }) { sidePlant(w - 22f, h - 10f, 1f) }
+        smallPlant(57f, h - 18f, -1f); smallPlant(w - 57f, h - 21f, 1f)
         for (i in 0..15) { val x = (i * 43f) % w; drawLine(SageDark.copy(alpha = .38f), Offset(x, h - 16f), Offset(x + if (i % 2 == 0) 3f else -2f, h - 27f), 1.6f, StrokeCap.Round) }
     }
 }
@@ -125,6 +125,35 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawCloud(x: Float,
     drawLine(SageDark.copy(alpha = .18f), Offset(x - 11f * scale, y + 7f * scale), Offset(x + 46f * scale, y + 7f * scale), 1.6f, StrokeCap.Round)
 }
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.plant(x: Float, y: Float, direction: Float) {
-    drawLine(SageDark.copy(alpha = .7f), Offset(x, y), Offset(x + direction * 18f, y - 58f), 2.5f, StrokeCap.Round); drawOval(Sage.copy(alpha = .74f), topLeft = Offset(x + direction * 12f, y - 52f), size = Size(18f, 8f)); drawOval(SageLight, topLeft = Offset(x + direction * 2f, y - 36f), size = Size(20f, 9f))
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.sidePlant(x: Float, y: Float, direction: Float) {
+    val stem = SageDark.copy(alpha = .56f)
+    drawLine(stem, Offset(x, y), Offset(x + direction * 42f, y - 205f), 4f, StrokeCap.Round)
+    drawLine(stem, Offset(x + direction * 17f, y - 85f), Offset(x + direction * 76f, y - 125f), 3f, StrokeCap.Round)
+    drawLine(stem, Offset(x + direction * 31f, y - 145f), Offset(x + direction * 84f, y - 185f), 3f, StrokeCap.Round)
+    leaf(x + direction * 44f, y - 211f, direction * -18f, Sage.copy(alpha = .82f))
+    leaf(x + direction * 73f, y - 129f, direction * 21f, SageLight.copy(alpha = .92f))
+    leaf(x + direction * 82f, y - 190f, direction * -24f, Sage.copy(alpha = .72f))
+    leaf(x + direction * 22f, y - 101f, direction * 20f, SageLight.copy(alpha = .86f))
+    flower(x + direction * 64f, y - 46f, Peach)
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.smallPlant(x: Float, y: Float, direction: Float) {
+    drawLine(SageDark.copy(alpha = .55f), Offset(x, y), Offset(x + direction * 17f, y - 83f), 2.5f, StrokeCap.Round)
+    leaf(x + direction * 16f, y - 78f, direction * -20f, Sage.copy(alpha = .72f))
+    leaf(x + direction * 4f, y - 48f, direction * 18f, SageLight.copy(alpha = .8f))
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.leaf(x: Float, y: Float, rotation: Float, color: Color) {
+    withTransform({ rotate(rotation, pivot = Offset(x, y)) }) {
+        drawOval(color, topLeft = Offset(x - 24f, y - 10f), size = Size(48f, 20f))
+        drawOval(SageDark.copy(alpha = .20f), topLeft = Offset(x - 24f, y - 10f), size = Size(48f, 20f), style = androidx.compose.ui.graphics.drawscope.Stroke(1.6f))
+    }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.flower(x: Float, y: Float, color: Color) {
+    drawCircle(color.copy(alpha = .82f), 7f, Offset(x - 6f, y))
+    drawCircle(color.copy(alpha = .72f), 7f, Offset(x + 6f, y))
+    drawCircle(color.copy(alpha = .72f), 7f, Offset(x, y - 6f))
+    drawCircle(color.copy(alpha = .72f), 7f, Offset(x, y + 6f))
+    drawCircle(Yellow, 3.5f, Offset(x, y))
 }
