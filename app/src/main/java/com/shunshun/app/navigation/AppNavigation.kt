@@ -3,8 +3,12 @@ package com.shunshun.app.navigation
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,6 +35,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -47,6 +52,8 @@ import com.shunshun.app.ui.SageDark
 import com.shunshun.app.ui.SageLight
 import com.shunshun.app.ui.Surface
 import com.shunshun.app.ui.components.NavGlyph
+import com.shunshun.app.ui.components.AppHaptic
+import com.shunshun.app.ui.components.rememberAppHaptics
 import com.shunshun.app.ui.home.HomeScreen
 import com.shunshun.app.ui.profile.ProfileScreen
 import com.shunshun.app.ui.record.RecordScreen
@@ -65,7 +72,7 @@ fun ShunShunApp() {
     val snack = remember { SnackbarHostState() }
     Scaffold(containerColor = Cream, snackbarHost = { SnackbarHost(snack) }, bottomBar = { AppBottomBar(tab) { tabName = it.name } }) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
-            AnimatedContent(tab, transitionSpec = { fadeIn(tween(240)) togetherWith fadeOut(tween(160)) }, label = "page") { page ->
+            AnimatedContent(tab, transitionSpec = { (slideInVertically(tween(280)) { it / 18 } + fadeIn(tween(280))) togetherWith (slideOutVertically(tween(220)) { -it / 24 } + fadeOut(tween(180))) }, label = "page") { page ->
                 when (page) {
                     AppTab.HOME -> HomeScreen(records) { tabName = AppTab.RECORD.name }
                     AppTab.RECORD -> RecordScreen(records, onSaved = { vm.add(it); tabName = AppTab.HOME.name }, onDelete = vm::delete)
@@ -79,11 +86,13 @@ fun ShunShunApp() {
 
 @Composable
 private fun AppBottomBar(selected: AppTab, onSelect: (AppTab) -> Unit) {
+    val haptics = rememberAppHaptics()
     Row(Modifier.fillMaxWidth().background(Surface).border(1.dp, Line.copy(alpha = .55f)).padding(horizontal = 18.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
         AppTab.values().forEach { tab ->
             val active = tab == selected
-            Column(Modifier.width(62.dp).clickable { onSelect(tab) }, horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.size(40.dp).background(if (active) SageLight.copy(alpha = .72f) else Color.Transparent, CircleShape), contentAlignment = Alignment.Center) { NavGlyph(tab, if (active) SageDark else Muted) }
+            val scale by animateFloatAsState(if (active) 1.08f else .94f, spring(dampingRatio = .72f), label = "tab-${tab.name}")
+            Column(Modifier.width(62.dp).clickable { if (!active) haptics(AppHaptic.Selection); onSelect(tab) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.size(40.dp).scale(scale).background(if (active) SageLight.copy(alpha = .72f) else Color.Transparent, CircleShape), contentAlignment = Alignment.Center) { NavGlyph(tab, if (active) SageDark else Muted) }
                 Text(tab.title, color = if (active) SageDark else Muted, fontSize = 10.sp, fontWeight = if (active) FontWeight.Medium else FontWeight.Normal)
             }
         }

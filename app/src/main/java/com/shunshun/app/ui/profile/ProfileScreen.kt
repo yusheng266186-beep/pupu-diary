@@ -2,9 +2,14 @@ package com.shunshun.app.ui.profile
 
 import android.net.Uri
 import android.widget.Toast
+import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.preferencesDataStore
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.DeleteOutline
@@ -30,6 +36,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,20 +59,30 @@ import com.shunshun.app.ui.Meadow
 import com.shunshun.app.ui.Muted
 import com.shunshun.app.ui.Peach
 import com.shunshun.app.ui.SageDark
+import com.shunshun.app.ui.Sage
+import com.shunshun.app.ui.Line
 import com.shunshun.app.ui.Surface
 import com.shunshun.app.ui.components.ActionRow
 import com.shunshun.app.ui.components.PoopMascot
 import com.shunshun.app.ui.components.SectionCard
 import com.shunshun.app.ui.components.MascotMood
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.map
 import org.json.JSONArray
 import org.json.JSONObject
+
+private val Context.settingsDataStore by preferencesDataStore(name = "shunshun_settings")
+private val WATER_REMINDER = booleanPreferencesKey("water_reminder")
+private val RECORD_REMINDER = booleanPreferencesKey("record_reminder")
 
 @Composable
 fun ProfileScreen(records: List<PoopRecord>, vm: PoopViewModel) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var confirmClear by remember { mutableStateOf(false) }
+    val waterReminder by context.settingsDataStore.data.map { it[WATER_REMINDER] ?: false }.collectAsState(initial = false)
+    val recordReminder by context.settingsDataStore.data.map { it[RECORD_REMINDER] ?: false }.collectAsState(initial = false)
+    var showAbout by remember { mutableStateOf(false) }
 
     fun encodeBackup(): String = JSONArray().apply {
         records.forEach { record ->
@@ -176,9 +193,17 @@ fun ProfileScreen(records: List<PoopRecord>, vm: PoopViewModel) {
         item {
             SectionCard("生活小设置") {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    ActionRow(Icons.Outlined.WaterDrop, "喝水提醒")
-                    ActionRow(Icons.Outlined.CalendarMonth, "记录提醒")
-                    ActionRow(Icons.Outlined.Info, "关于顺顺")
+                    ToggleSettingRow(Icons.Outlined.WaterDrop, "喝水提醒", waterReminder) {
+                        val next = !waterReminder
+                        scope.launch { context.settingsDataStore.edit { it[WATER_REMINDER] = next } }
+                        Toast.makeText(context, if (next) "喝水提醒已开启" else "喝水提醒已关闭", Toast.LENGTH_SHORT).show()
+                    }
+                    ToggleSettingRow(Icons.Outlined.CalendarMonth, "记录提醒", recordReminder) {
+                        val next = !recordReminder
+                        scope.launch { context.settingsDataStore.edit { it[RECORD_REMINDER] = next } }
+                        Toast.makeText(context, if (next) "记录提醒已开启" else "记录提醒已关闭", Toast.LENGTH_SHORT).show()
+                    }
+                    ActionRow(Icons.Outlined.Info, "关于顺顺") { showAbout = true }
                 }
             }
         }
@@ -203,5 +228,30 @@ fun ProfileScreen(records: List<PoopRecord>, vm: PoopViewModel) {
             },
             containerColor = Cream
         )
+    }
+
+    if (showAbout) {
+        AlertDialog(
+            onDismissRequest = { showAbout = false },
+            title = { Text("关于顺顺", color = BrownDark) },
+            text = { Text("顺顺是一款温柔的个人生活记录工具，帮助你用几秒钟记下身体的小变化。所有记录都保存在本机。\n\n版本 1.5.0", color = Muted, lineHeight = 21.sp) },
+            confirmButton = { TextButton(onClick = { showAbout = false }) { Text("知道啦", color = SageDark) } },
+            containerColor = Cream
+        )
+    }
+}
+
+@Composable
+private fun ToggleSettingRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, checked: Boolean, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = SageDark, modifier = Modifier.size(21.dp))
+        Spacer(Modifier.width(13.dp))
+        Text(label, color = Ink, fontSize = 14.sp)
+        Spacer(Modifier.weight(1f))
+        Text(if (checked) "开启" else "关闭", color = if (checked) SageDark else Muted, fontSize = 12.sp, modifier = Modifier.padding(end = 9.dp))
+        val knobOffset by animateDpAsState(if (checked) 18.dp else 2.dp, label = "setting-$label")
+        Box(Modifier.size(width = 42.dp, height = 24.dp).background(if (checked) Sage.copy(alpha = .72f) else Line, RoundedCornerShape(12.dp))) {
+            Box(Modifier.padding(start = knobOffset).size(20.dp).background(if (checked) Color.White else Surface, CircleShape))
+        }
     }
 }

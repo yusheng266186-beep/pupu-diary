@@ -11,9 +11,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -24,6 +32,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import kotlin.random.Random
 import androidx.compose.material3.Text
 import com.shunshun.app.navigation.AppTab
 import com.shunshun.app.ui.BlueMist
@@ -40,6 +50,16 @@ enum class MascotMood { Default, Happy, Excited, Sleepy, Sad, Water }
 
 @Composable
 fun PoopMascot(size: Dp, mood: MascotMood = MascotMood.Default) {
+    var blinking by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(Random.nextLong(3_000L, 6_000L))
+            blinking = true
+            delay(120L)
+            blinking = false
+        }
+    }
+    val eyeScale by animateFloatAsState(if (blinking) .16f else 1f, tween(90), label = "mascot-blink")
     Canvas(Modifier.size(size)) {
         val w = size.toPx(); val h = size.toPx()
         val body = Path().apply { moveTo(w * .16f, h * .78f); cubicTo(w * .10f, h * .62f, w * .17f, h * .48f, w * .29f, h * .43f); cubicTo(w * .30f, h * .25f, w * .42f, h * .34f, w * .50f, h * .16f); cubicTo(w * .59f, h * .02f, w * .64f, h * .27f, w * .72f, h * .40f); cubicTo(w * .88f, h * .48f, w * .93f, h * .68f, w * .83f, h * .80f); cubicTo(w * .67f, h * .98f, w * .31f, h * .98f, w * .16f, h * .78f); close() }
@@ -47,7 +67,7 @@ fun PoopMascot(size: Dp, mood: MascotMood = MascotMood.Default) {
         drawLine(BrownDark.copy(alpha = .38f), Offset(w * .21f, h * .77f), Offset(w * .34f, h * .87f), 2f, StrokeCap.Round)
         drawLine(BrownDark.copy(alpha = .38f), Offset(w * .79f, h * .77f), Offset(w * .66f, h * .87f), 2f, StrokeCap.Round)
         val eyeY = if (mood == MascotMood.Sleepy) .62f else .60f
-        if (mood == MascotMood.Sleepy) { drawLine(BrownDark, Offset(w * .32f, h * eyeY), Offset(w * .41f, h * eyeY), 3f, StrokeCap.Round); drawLine(BrownDark, Offset(w * .59f, h * eyeY), Offset(w * .68f, h * eyeY), 3f, StrokeCap.Round) } else { drawCircle(BrownDark, w * .034f, Offset(w * .38f, h * eyeY)); drawCircle(BrownDark, w * .034f, Offset(w * .62f, h * eyeY)) }
+        if (mood == MascotMood.Sleepy) { drawLine(BrownDark, Offset(w * .32f, h * eyeY), Offset(w * .41f, h * eyeY), 3f, StrokeCap.Round); drawLine(BrownDark, Offset(w * .59f, h * eyeY), Offset(w * .68f, h * eyeY), 3f, StrokeCap.Round) } else { val radius = w * .034f; drawOval(BrownDark, topLeft = Offset(w * .38f - radius, h * eyeY - radius * eyeScale), size = Size(radius * 2f, radius * 2f * eyeScale)); drawOval(BrownDark, topLeft = Offset(w * .62f - radius, h * eyeY - radius * eyeScale), size = Size(radius * 2f, radius * 2f * eyeScale)) }
         drawCircle(Color(0xFFE7A6A0), w * .06f, Offset(w * .27f, h * .69f)); drawCircle(Color(0xFFE7A6A0), w * .06f, Offset(w * .73f, h * .69f))
         if (mood == MascotMood.Sad) drawArc(BrownDark, 200f, 140f, false, topLeft = Offset(w * .40f, h * .64f), size = Size(w * .20f, h * .14f), style = Stroke(3f)) else drawArc(BrownDark, 15f, 150f, false, topLeft = Offset(w * .40f, h * .61f), size = Size(w * .20f, h * .15f), style = Stroke(3f))
         if (mood == MascotMood.Water) { drawLine(BlueMist, Offset(w * .84f, h * .22f), Offset(w * .95f, h * .06f), 4f, StrokeCap.Round); drawCircle(BlueMist, 4f, Offset(w * .96f, h * .22f)) }
@@ -73,7 +93,8 @@ fun StoolIcon(type: Int, size: Dp = 48.dp) {
 @Composable
 fun MoodFace(index: Int, selected: Boolean, onClick: () -> Unit) {
     val faceColors = listOf(Color(0xFFB8D6B8), Color(0xFFF0B8AE), Color(0xFFB8CCD9), Color(0xFFF1B58B), Color(0xFFF2D48A))
-    Column(Modifier.width(58.dp).clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
+    val faceScale by animateFloatAsState(if (selected) 1.08f else 1f, androidx.compose.animation.core.spring(dampingRatio = .7f), label = "mood-$index")
+    Column(Modifier.width(58.dp).scale(faceScale).clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.size(48.dp).background(faceColors[index].copy(alpha = if (selected) 1f else .45f), CircleShape).border(if (selected) 2.dp else 0.dp, if (selected) SageDark else Color.Transparent, CircleShape), contentAlignment = Alignment.Center) { Canvas(Modifier.fillMaxSize().padding(12.dp)) { val ink = BrownDark.copy(alpha = .75f); drawCircle(ink, 2.2f, Offset(size.width * .30f, size.height * .38f)); drawCircle(ink, 2.2f, Offset(size.width * .70f, size.height * .38f)); if (index < 2) drawArc(ink, 20f, 140f, false, topLeft = Offset(size.width * .28f, size.height * .48f), size = Size(size.width * .44f, size.height * .28f), style = Stroke(2f)) else drawArc(ink, 200f, 140f, false, topLeft = Offset(size.width * .28f, size.height * .38f), size = Size(size.width * .44f, size.height * .28f), style = Stroke(2f)) } }
         Text(listOf("很难受", "不舒服", "一般", "舒服", "超舒服")[index], color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 5.dp))
     }
