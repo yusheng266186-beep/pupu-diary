@@ -11,7 +11,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,6 +53,7 @@ import com.shunshun.app.ui.SageLight
 import com.shunshun.app.ui.Surface
 import com.shunshun.app.ui.components.NavGlyph
 import com.shunshun.app.ui.components.AppHaptic
+import com.shunshun.app.ui.components.appClickable
 import com.shunshun.app.ui.components.rememberAppHaptics
 import com.shunshun.app.ui.home.HomeScreen
 import com.shunshun.app.ui.profile.ProfileScreen
@@ -93,7 +93,7 @@ private fun AppBottomBar(selected: AppTab, onSelect: (AppTab) -> Unit) {
         AppTab.values().forEach { tab ->
             val active = tab == selected
             val scale by animateFloatAsState(if (active) 1.08f else .94f, spring(dampingRatio = .72f), label = "tab-${tab.name}")
-            Column(Modifier.width(62.dp).clickable { if (!active) haptics(AppHaptic.Selection); onSelect(tab) }, horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.width(62.dp).appClickable { if (!active) haptics(AppHaptic.Selection); onSelect(tab) }, horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(Modifier.size(40.dp).scale(scale).background(if (active) SageLight.copy(alpha = .72f) else Color.Transparent, CircleShape), contentAlignment = Alignment.Center) { NavGlyph(tab, if (active) SageDark else Muted) }
                 Text(tab.title, color = if (active) SageDark else Muted, fontSize = 10.sp, fontWeight = if (active) FontWeight.Medium else FontWeight.Normal)
             }

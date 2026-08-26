@@ -3,7 +3,6 @@ package com.shunshun.app.ui.profile
 import android.net.Uri
 import android.widget.Toast
 import android.content.Context
-import android.app.TimePickerDialog
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -12,7 +11,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.datastore.preferences.core.edit
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -36,10 +35,8 @@ import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.WaterDrop
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -67,13 +64,16 @@ import com.shunshun.app.ui.Meadow
 import com.shunshun.app.ui.Muted
 import com.shunshun.app.ui.Peach
 import com.shunshun.app.ui.SageDark
+import com.shunshun.app.ui.SageLight
 import com.shunshun.app.ui.Sage
 import com.shunshun.app.ui.Line
 import com.shunshun.app.ui.Surface
 import com.shunshun.app.ui.components.ActionRow
+import com.shunshun.app.ui.components.HandDrawnDialog
 import com.shunshun.app.ui.components.PoopMascot
 import com.shunshun.app.ui.components.SectionCard
 import com.shunshun.app.ui.components.MascotMood
+import com.shunshun.app.ui.components.appClickable
 import com.shunshun.app.data.RECORD_REMINDER
 import com.shunshun.app.data.RECORD_REMINDER_HOUR
 import com.shunshun.app.data.RECORD_REMINDER_MINUTE
@@ -101,6 +101,7 @@ fun ProfileScreen(records: List<PoopRecord>, vm: PoopViewModel) {
     val recordMinute by context.settingsDataStore.data.map { it[RECORD_REMINDER_MINUTE] ?: 0 }.collectAsState(initial = 0)
     var showAbout by remember { mutableStateOf(false) }
     var showNickname by remember { mutableStateOf(false) }
+    var pickerKind by remember { mutableStateOf<String?>(null) }
     val nickname by context.settingsDataStore.data.map { it[NICKNAME] ?: "小顺顺" }.collectAsState(initial = "小顺顺")
     var nicknameDraft by remember(nickname) { mutableStateOf(nickname) }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -117,22 +118,7 @@ fun ProfileScreen(records: List<PoopRecord>, vm: PoopViewModel) {
     }
 
     fun pickReminderTime(kind: String) {
-        val isWater = kind == ReminderScheduler.WATER
-        val hour = if (isWater) waterHour else recordHour
-        val minute = if (isWater) waterMinute else recordMinute
-        TimePickerDialog(context, { _, selectedHour, selectedMinute ->
-            scope.launch {
-                context.settingsDataStore.edit { preferences ->
-                    if (isWater) {
-                        preferences[WATER_REMINDER_HOUR] = selectedHour
-                        preferences[WATER_REMINDER_MINUTE] = selectedMinute
-                    } else {
-                        preferences[RECORD_REMINDER_HOUR] = selectedHour
-                        preferences[RECORD_REMINDER_MINUTE] = selectedMinute
-                    }
-                }
-            }
-        }, hour, minute, true).show()
+        pickerKind = kind
     }
 
     fun encodeBackup(): String = JSONArray().apply {
@@ -222,7 +208,7 @@ fun ProfileScreen(records: List<PoopRecord>, vm: PoopViewModel) {
             Text("把每一次记录，都好好放在身边", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 5.dp))
         }
         item {
-            SectionCard("顺顺用户", Modifier.clickable { nicknameDraft = nickname; showNickname = true }) {
+            SectionCard("顺顺用户", Modifier.appClickable { nicknameDraft = nickname; showNickname = true }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(82.dp).background(Meadow, CircleShape), contentAlignment = Alignment.Center) {
                         PoopMascot(64.dp, MascotMood.Happy)
@@ -277,64 +263,118 @@ fun ProfileScreen(records: List<PoopRecord>, vm: PoopViewModel) {
     }
 
     if (confirmClear) {
-        AlertDialog(
-            onDismissRequest = { confirmClear = false },
-            title = { Text("清除全部记录？") },
-            text = { Text("删除后无法恢复，请确认已不再需要这些本地数据。") },
-            confirmButton = {
-                TextButton(onClick = { vm.clear(); confirmClear = false }) { Text("确认清除", color = Peach) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmClear = false }) { Text("取消", color = SageDark) }
-            },
-            containerColor = Cream
+        HandDrawnDialog(
+            title = "清除全部记录？",
+            message = "删除后无法恢复，请确认已不再需要这些本地数据。",
+            confirmLabel = "确认清除",
+            confirmColor = Peach,
+            onDismiss = { confirmClear = false },
+            onConfirm = { vm.clear(); confirmClear = false }
         )
     }
 
     if (showAbout) {
-        AlertDialog(
-            onDismissRequest = { showAbout = false },
-            title = { Text("关于顺顺", color = BrownDark) },
-            text = { Text("顺顺是一款温柔的个人生活记录工具，帮助你用几秒钟记下身体的小变化。所有记录都保存在本机。\n\n版本 1.8.0", color = Muted, lineHeight = 21.sp) },
-            confirmButton = { TextButton(onClick = { showAbout = false }) { Text("知道啦", color = SageDark) } },
-            containerColor = Cream
+        HandDrawnDialog(
+            title = "关于顺顺",
+            message = "顺顺是一款温柔的个人生活记录工具，帮助你用几秒钟记下身体的小变化。所有记录都保存在本机。\n\n版本 1.9.0",
+            confirmLabel = "知道啦",
+            dismissLabel = null,
+            onDismiss = { showAbout = false },
+            onConfirm = { showAbout = false }
         )
     }
 
     if (showNickname) {
-        AlertDialog(
-            onDismissRequest = { showNickname = false },
-            title = { Text("给自己起个昵称", color = BrownDark) },
-            text = {
-                BasicTextField(
-                    value = nicknameDraft,
-                    onValueChange = { nicknameDraft = it.take(12) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().background(Cream, RoundedCornerShape(14.dp)).border(1.dp, Line, RoundedCornerShape(14.dp)).padding(horizontal = 13.dp, vertical = 12.dp),
-                    textStyle = TextStyle(color = Ink, fontSize = 16.sp),
-                    decorationBox = { field ->
-                        if (nicknameDraft.isBlank()) Text("例如：小顺顺", color = Muted, fontSize = 16.sp)
-                        field()
+        HandDrawnDialog(
+            title = "给自己起个昵称",
+            onDismiss = { showNickname = false },
+            confirmLabel = "保存",
+            onConfirm = {
+                val next = nicknameDraft.trim().ifBlank { "小顺顺" }
+                scope.launch { context.settingsDataStore.edit { it[NICKNAME] = next } }
+                showNickname = false
+            }
+        ) {
+            BasicTextField(
+                value = nicknameDraft,
+                onValueChange = { nicknameDraft = it.take(12) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp).background(Cream, RoundedCornerShape(14.dp)).border(1.dp, Line, RoundedCornerShape(14.dp)).padding(horizontal = 13.dp, vertical = 12.dp),
+                textStyle = TextStyle(color = Ink, fontSize = 16.sp),
+                decorationBox = { field ->
+                    if (nicknameDraft.isBlank()) Text("例如：小顺顺", color = Muted, fontSize = 16.sp)
+                    field()
+                }
+            )
+        }
+    }
+
+    pickerKind?.let { kind ->
+        val isWater = kind == ReminderScheduler.WATER
+        HandDrawnTimePicker(
+            hour = if (isWater) waterHour else recordHour,
+            minute = if (isWater) waterMinute else recordMinute,
+            onDismiss = { pickerKind = null },
+            onConfirm = { hour, minute ->
+                scope.launch {
+                    context.settingsDataStore.edit { preferences ->
+                        if (isWater) {
+                            preferences[WATER_REMINDER_HOUR] = hour
+                            preferences[WATER_REMINDER_MINUTE] = minute
+                        } else {
+                            preferences[RECORD_REMINDER_HOUR] = hour
+                            preferences[RECORD_REMINDER_MINUTE] = minute
+                        }
                     }
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val next = nicknameDraft.trim().ifBlank { "小顺顺" }
-                    scope.launch { context.settingsDataStore.edit { it[NICKNAME] = next } }
-                    showNickname = false
-                }) { Text("保存", color = SageDark) }
-            },
-            dismissButton = { TextButton(onClick = { showNickname = false }) { Text("取消", color = Muted) } },
-            containerColor = Cream
+                }
+                pickerKind = null
+            }
         )
     }
 }
 
 @Composable
+private fun HandDrawnTimePicker(hour: Int, minute: Int, onDismiss: () -> Unit, onConfirm: (Int, Int) -> Unit) {
+    var selectedHour by remember(hour) { mutableStateOf(hour.coerceIn(0, 23)) }
+    var selectedMinute by remember(minute) { mutableStateOf(minute.coerceIn(0, 59)) }
+    HandDrawnDialog(
+        title = "挑一个提醒时间",
+        message = "左右轻点选择时和分，提醒会每天温柔地出现。",
+        confirmLabel = "设置提醒",
+        onDismiss = onDismiss,
+        onConfirm = { onConfirm(selectedHour, selectedMinute) }
+    ) {
+        Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            WheelPicker("时", selectedHour, 24) { selectedHour = it }
+            Text(":", color = SageDark, fontSize = 25.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 18.dp))
+            WheelPicker("分", selectedMinute, 60) { selectedMinute = it }
+        }
+        Text("24 小时制 · ${formatReminderTime(selectedHour, selectedMinute)}", color = Muted, fontSize = 11.sp, modifier = Modifier.fillMaxWidth().padding(top = 9.dp), textAlign = TextAlign.Center)
+    }
+}
+
+@Composable
+private fun WheelPicker(label: String, value: Int, range: Int, onChange: (Int) -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, color = Muted, fontSize = 11.sp)
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 5.dp)) {
+            Box(Modifier.size(29.dp).appClickable { onChange((value - 1 + range) % range) }, contentAlignment = Alignment.Center) { Text("‹", color = SageDark, fontSize = 24.sp) }
+            Column(Modifier.width(52.dp).height(103.dp).background(Meadow, RoundedCornerShape(16.dp)).border(1.dp, Line, RoundedCornerShape(16.dp)), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Text(wheelNumber((value - 1 + range) % range), color = Muted.copy(alpha = .66f), fontSize = 11.sp)
+                Text(wheelNumber(value), color = SageDark, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.fillMaxWidth().background(SageLight.copy(alpha = .75f)).padding(vertical = 5.dp), textAlign = TextAlign.Center)
+                Text(wheelNumber((value + 1) % range), color = Muted.copy(alpha = .66f), fontSize = 11.sp)
+            }
+            Box(Modifier.size(29.dp).appClickable { onChange((value + 1) % range) }, contentAlignment = Alignment.Center) { Text("›", color = SageDark, fontSize = 24.sp) }
+        }
+    }
+}
+
+private fun wheelNumber(value: Int): String = "%02d".format(java.util.Locale.CHINA, value)
+
+@Composable
 private fun ToggleSettingRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, checked: Boolean, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = SageDark, modifier = Modifier.size(21.dp))
+    Row(Modifier.fillMaxWidth().appClickable(onClick = onClick).padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) { Icon(icon, null, tint = SageDark, modifier = Modifier.size(21.dp)) }
         Spacer(Modifier.width(13.dp))
         Text(label, color = Ink, fontSize = 14.sp)
         Spacer(Modifier.weight(1f))
@@ -348,8 +388,8 @@ private fun ToggleSettingRow(icon: androidx.compose.ui.graphics.vector.ImageVect
 
 @Composable
 private fun ReminderTimeRow(label: String, time: String, enabled: Boolean, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 34.dp, top = 5.dp, bottom = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Outlined.AccessTime, null, tint = if (enabled) SageDark else Muted, modifier = Modifier.size(16.dp))
+    Row(Modifier.fillMaxWidth().appClickable(onClick = onClick).padding(start = 34.dp, top = 5.dp, bottom = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.AccessTime, null, tint = if (enabled) SageDark else Muted, modifier = Modifier.size(16.dp)) }
         Spacer(Modifier.width(9.dp))
         Text(label, color = Muted, fontSize = 12.sp)
         Spacer(Modifier.weight(1f))

@@ -10,7 +10,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,8 +61,11 @@ import com.shunshun.app.ui.components.PoopMascot
 import com.shunshun.app.ui.components.MascotMood
 import com.shunshun.app.ui.components.PrimaryButton
 import com.shunshun.app.ui.components.SectionCard
+import com.shunshun.app.ui.components.AppHaptic
+import com.shunshun.app.ui.components.appClickable
 import com.shunshun.app.ui.components.formatTime
 import com.shunshun.app.ui.components.dayKey
+import com.shunshun.app.ui.components.rememberAppHaptics
 import com.shunshun.app.ui.components.streak
 import kotlinx.coroutines.delay
 import kotlin.random.Random
@@ -81,8 +83,12 @@ fun HomeScreen(records: List<PoopRecord>, onRecord: () -> Unit) {
     val bob by transition.animateFloat(.985f, 1.015f, infiniteRepeatable(tween(2_300, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "character-bob")
     var bubble by remember { mutableStateOf(false) }
     var bubbleText by remember { mutableStateOf("今天也要顺顺利利～") }
+    var tapped by remember { mutableStateOf(false) }
+    val tapScale by androidx.compose.animation.core.animateFloatAsState(if (tapped) .88f else 1f, tween(160), label = "mascot-tap")
+    val haptics = rememberAppHaptics()
     val bubbleLines = remember { listOf("今天也要顺顺利利～", "记得多喝水呀！", "肚肚舒服最重要～", "今天吃蔬菜了吗？", "保持好心情～") }
     LaunchedEffect(bubble) { if (bubble) { delay(1_700L); bubble = false } }
+    LaunchedEffect(tapped) { if (tapped) { delay(260L); tapped = false } }
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         item {
             Spacer(Modifier.height(24.dp))
@@ -99,7 +105,15 @@ fun HomeScreen(records: List<PoopRecord>, onRecord: () -> Unit) {
             Spacer(Modifier.height(17.dp))
             Box(Modifier.fillMaxWidth().height(370.dp).background(Meadow.copy(alpha = .62f), RoundedCornerShape(31.dp)), contentAlignment = Alignment.BottomCenter) {
                 HomeGarden()
-                Box(Modifier.padding(bottom = 43.dp).scale(bob).clickable { bubbleText = bubbleLines[Random.nextInt(bubbleLines.size)]; bubble = true }) { PoopMascot(112.dp, MascotMood.Happy) }
+                Box(Modifier.padding(bottom = 43.dp).scale(bob * tapScale).appClickable {
+                    tapped = true
+                    bubbleText = bubbleLines[Random.nextInt(bubbleLines.size)]
+                    bubble = true
+                    haptics(AppHaptic.Light)
+                }) { PoopMascot(112.dp, if (tapped) MascotMood.Excited else MascotMood.Happy) }
+                AnimatedVisibility(visible = tapped, modifier = Modifier.align(Alignment.Center).offset(y = (-104).dp)) {
+                    Text("✦  ✿  ✦", color = Peach, fontSize = 17.sp)
+                }
                 AnimatedVisibility(visible = bubble, modifier = Modifier.align(Alignment.Center).offset(y = (-72).dp)) { Text(bubbleText, color = BrownDark, fontSize = 12.sp, modifier = Modifier.background(Surface, RoundedCornerShape(18.dp)).padding(horizontal = 14.dp, vertical = 9.dp)) }
                 Text("顺顺，今天也要轻松一点", color = SageDark, fontSize = 12.sp, modifier = Modifier.align(Alignment.TopCenter).padding(top = 21.dp))
             }

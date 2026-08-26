@@ -3,7 +3,6 @@ package com.shunshun.app.ui.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -94,17 +93,44 @@ fun StoolIcon(type: Int, size: Dp = 48.dp) {
 fun MoodFace(index: Int, selected: Boolean, onClick: () -> Unit) {
     val faceColors = listOf(Color(0xFFB8D6B8), Color(0xFFF0B8AE), Color(0xFFB8CCD9), Color(0xFFF1B58B), Color(0xFFF2D48A))
     val faceScale by animateFloatAsState(if (selected) 1.08f else 1f, androidx.compose.animation.core.spring(dampingRatio = .7f), label = "mood-$index")
-    Column(Modifier.width(58.dp).scale(faceScale).clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.width(58.dp).scale(faceScale).appClickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.size(48.dp).background(faceColors[index].copy(alpha = if (selected) 1f else .45f), CircleShape).border(if (selected) 2.dp else 0.dp, if (selected) SageDark else Color.Transparent, CircleShape), contentAlignment = Alignment.Center) {
-            Canvas(Modifier.fillMaxSize().padding(12.dp)) {
-                val ink = BrownDark.copy(alpha = .75f)
-                drawCircle(ink, 2.2f, Offset(size.width * .30f, size.height * .38f))
-                drawCircle(ink, 2.2f, Offset(size.width * .70f, size.height * .38f))
+            Canvas(Modifier.fillMaxSize().padding(9.dp)) {
+                val ink = BrownDark.copy(alpha = .78f)
+                val line = 1.8f
+                val left = Offset(size.width * .28f, size.height * .38f)
+                val right = Offset(size.width * .72f, size.height * .38f)
+                drawCircle(ink, 2.1f, left)
+                drawCircle(ink, 2.1f, right)
+                drawCircle(Color.White.copy(alpha = .42f), 1.1f, Offset(left.x - .6f, left.y - .7f))
+                drawCircle(Color.White.copy(alpha = .42f), 1.1f, Offset(right.x - .6f, right.y - .7f))
                 when (index) {
-                    0, 1 -> drawArc(ink, 200f, 140f, false, topLeft = Offset(size.width * .28f, size.height * .38f), size = Size(size.width * .44f, size.height * .28f), style = Stroke(2f))
-                    2 -> drawLine(ink, Offset(size.width * .35f, size.height * .62f), Offset(size.width * .65f, size.height * .62f), 2f, StrokeCap.Round)
-                    else -> drawArc(ink, 20f, 140f, false, topLeft = Offset(size.width * .28f, size.height * .48f), size = Size(size.width * .44f, size.height * .28f), style = Stroke(2f))
+                    0 -> {
+                        drawLine(ink, Offset(left.x - 3f, left.y - 5f), Offset(left.x + 3f, left.y - 3f), line, StrokeCap.Round)
+                        drawLine(ink, Offset(right.x - 3f, right.y - 3f), Offset(right.x + 3f, right.y - 5f), line, StrokeCap.Round)
+                        drawArc(ink, 205f, 130f, false, topLeft = Offset(size.width * .30f, size.height * .47f), size = Size(size.width * .40f, size.height * .29f), style = Stroke(line, cap = StrokeCap.Round))
+                    }
+                    1 -> {
+                        drawLine(ink, Offset(left.x - 3f, left.y + 1f), Offset(left.x + 3f, left.y + 2f), line, StrokeCap.Round)
+                        drawLine(ink, Offset(right.x - 3f, right.y + 2f), Offset(right.x + 3f, right.y + 1f), line, StrokeCap.Round)
+                        drawArc(ink, 195f, 130f, false, topLeft = Offset(size.width * .32f, size.height * .49f), size = Size(size.width * .36f, size.height * .24f), style = Stroke(line, cap = StrokeCap.Round))
+                    }
+                    2 -> {
+                        drawLine(ink, Offset(size.width * .35f, size.height * .63f), Offset(size.width * .65f, size.height * .63f), line, StrokeCap.Round)
+                        drawCircle(ink.copy(alpha = .35f), 1.1f, Offset(size.width * .50f, size.height * .50f))
+                    }
+                    3 -> {
+                        drawArc(ink, 200f, 140f, false, topLeft = Offset(left.x - 4f, left.y - 2f), size = Size(8f, 6f), style = Stroke(line, cap = StrokeCap.Round))
+                        drawArc(ink, 200f, 140f, false, topLeft = Offset(right.x - 4f, right.y - 2f), size = Size(8f, 6f), style = Stroke(line, cap = StrokeCap.Round))
+                        drawArc(ink, 20f, 140f, false, topLeft = Offset(size.width * .28f, size.height * .46f), size = Size(size.width * .44f, size.height * .30f), style = Stroke(line, cap = StrokeCap.Round))
+                    }
+                    else -> {
+                        drawCircle(ink, 1.4f, Offset(left.x, left.y - 1f)); drawCircle(ink, 1.4f, Offset(right.x, right.y - 1f))
+                        drawArc(ink, 20f, 140f, false, topLeft = Offset(size.width * .27f, size.height * .43f), size = Size(size.width * .46f, size.height * .34f), style = Stroke(line + .3f, cap = StrokeCap.Round))
+                    }
                 }
+                drawCircle(Color(0xFFE7A6A0).copy(alpha = .50f), 3.2f, Offset(size.width * .18f, size.height * .57f))
+                drawCircle(Color(0xFFE7A6A0).copy(alpha = .50f), 3.2f, Offset(size.width * .82f, size.height * .57f))
             }
         }
         Text(listOf("很难受", "不舒服", "一般", "舒服", "超舒服")[index], color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 5.dp))
