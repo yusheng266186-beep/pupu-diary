@@ -84,7 +84,7 @@ PoopRecord(id, time: Long, bristol: Int 1–7, mood: Int 0–4, smoothness: Int 
 - Kotlin 2.0.21 + Jetpack Compose（BOM 2024.09）+ Material3 基础组件，其余全部自绘（Canvas 手绘角色/图标/图表，无图片资源）
 - 插画全部矢量代码化：便便角色、7 型 Bristol 图标、5 款心情脸、太阳云朵草地、导航图标、App 图标
 - 提醒：AlarmManager 每日重复 + 系统通知（13+ 动态申请权限）
-- 构建：Gradle 8.7 + AGP 8.4.2，JDK 17，assembleDebug 出包
+- 构建：Gradle 8.9 + AGP 8.4.2，JDK 17，assembleDebug 出包
 
 ## 7. 交付物
 
@@ -110,6 +110,15 @@ PoopRecord(id, time: Long, bristol: Int 1–7, mood: Int 0–4, smoothness: Int 
 - [x] 构建出 APK 并验证
 
 ## 10. 更新日志
+
+### v2.1.0（安全加固：签名密钥治理 + 工程化基建）
+- **签名密钥轮换**：v2.0.0 及更早版本随仓库附带的 `pupu-release.jks` 与口令视为泄露，重新生成 2048 位 RSA 新密钥（有效期 30 年，CN=Pupu Diary），旧密钥作废
+- **密钥移出仓库**：`.gitignore` 新增 `*.jks` / `*.keystore` 规则，重写 git 历史后强推（历史中不再含密钥与口令）；签名配置改由本地 `local.properties` 提供（pupu.storeFile / storePassword / keyAlias / keyPassword 四键），文件缺失时 release 构建输出未签名包
+- **升级提示**：新旧签名不同，从 v2.0.0 及更早版本升级**无法覆盖安装**，需先卸载旧版重装（卸载前先用旧版导出 JSON 备份，新版导入恢复）
+- **GitHub Actions CI**：新增 build-apk workflow（push main / PR / 手动触发），temurin JDK 17 + Gradle 8.9，跑单元测试并上传 debug APK artifact（CI 无签名密钥，不做 release 构建）
+- **单元测试**：引入 JUnit 4.13.2，新增 Dates 日期工具（epoch 与 LocalDate 双向转换、中文日期/时间/星期/时长格式化）与 Bristol 分型（七型命名、建议文案、分布分组映射）共 9 个用例
+- **构建可移植化**：gradle.properties 移除本机代理与本机 JDK 路径（挪至机器级全局配置，不再随仓库分发），Gradle wrapper 从 8.7 升级到 8.9 与文档口径一致
+- versionCode 12
 
 ### v2.0.0（用户反馈第二轮：按钮/日历/图标三项重做）
 - **糖果按压按钮**：主按钮重构为「按钮面 + 深色底边」双层结构，按下时按钮面真的下沉 4dp 贴到底边（物理按压感），替代此前的平面胶囊

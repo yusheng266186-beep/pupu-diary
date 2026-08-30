@@ -20,8 +20,8 @@ android {
         applicationId = "com.pupu.diary"
         minSdk = 26
         targetSdk = 34
-        versionCode = 11
-        versionName = "2.0.0"
+        versionCode = 12
+        versionName = "2.1.0"
     }
 
     signingConfigs {
@@ -85,4 +85,5 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.animation:animation")
     implementation("androidx.compose.material3:material3")
+    testImplementation("junit:junit:4.13.2")
 }
