@@ -33,12 +33,39 @@
 
 生成文件：`app/build/outputs/apk/debug/app-debug.apk`
 
+如需构建正式签名版，执行：
+
+```powershell
+./gradlew.bat assembleRelease
+```
+
+生成文件：`app/build/outputs/apk/release/app-release.apk`（R8 混淆 + 资源收缩）
+
 release 签名密钥与密码存放在本地 `local.properties`（键名：`shunshun.storeFile`、`shunshun.storePassword`、`shunshun.keyAlias`、`shunshun.keyPassword`），不随仓库分发；缺少这些配置时仍可正常构建 Debug APK，但 `assembleRelease` 会因缺少签名配置而无法签名。
 
 最低支持 Android 8.0（API 26）。
 
 ## APK
 
-各版本的 APK 请到 [GitHub Releases](https://github.com/yusheng266186-beep/shunshun-android/releases) 页面下载（每个 Release 的资产中附有对应版本的 Debug APK）；也可以在 [GitHub Actions](https://github.com/yusheng266186-beep/shunshun-android/actions) 的构建产物中获取最新 master 分支自动构建的 Debug APK。仓库中不再直接存放 APK 文件。
+APK 不再提交进仓库。各版本安装包请到 [GitHub Releases](https://github.com/yusheng266186-beep/shunshun-android/releases) 页面下载；最新 master 分支自动构建的 Debug APK 可在 [GitHub Actions](https://github.com/yusheng266186-beep/shunshun-android/actions) 的构建产物中获取。
+
+**签名变化**：自 v1.11.0 起提供 R8 混淆 + 资源收缩的正式签名 Release APK，使用全新正式密钥签名，与 v1.10.0 及更早版本的 Debug 签名不同，无法覆盖安装——已装旧版的用户请先卸载旧版再安装新版；如有需要保留的数据，请先在 App 内使用备份导出功能，重装后恢复。
 
 本应用仅用于个人生活记录，不构成医疗诊断或治疗建议。
+
+## 版本历史
+
+| 版本 | 亮点 |
+| --- | --- |
+| v1.11.0 | 首个 R8 混淆 + 正式签名 Release 包；Room 注解处理迁移 KSP；仓库瘦身，APK 全部移至 Releases |
+| v1.10.0 | 首页星光上浮动画；历史日期带横滑并保留更早记录；生活趋势环比上一周期 |
+| v1.9.0 | 手绘交互统一：无矩形水波纹、圆角手绘弹窗、自绘 24 小时提醒轮盘 |
+| v1.8.0 | 连续记录徽章与每日小贴士；昵称编辑；颜色日记经 Room 迁移无感保留 |
+| v1.7.0 | 记录详情、编辑、删除；通知提醒（权限、每日调度、重启恢复）；引入 Repository |
+| v1.6.0 | 实机截图保真调优：底部线性图标、心情表情语义、图标缩放 |
+| v1.5.0 | 记录新增时长、腹部状态等维度；历史日期筛选；统计按真实数据聚合 |
+| v1.4.0 | 页面按首页 / 记录 / 统计 / 我的拆分，统一手绘 Canvas 资产与交互组件 |
+| v1.3.0 | 原创手绘便便图标体系与类型化视觉样式 |
+| v1.2.0 | 细化全新手绘治愈风视觉语言 |
+| v1.1.0 | 整体重构为手绘治愈风体验 |
+| v1.0.0 | 首个版本：便便记录、Room 持久化、历史时间线与类型环形图 |
