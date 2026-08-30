@@ -33,10 +33,12 @@
 
 生成文件：`app/build/outputs/apk/debug/app-debug.apk`
 
+release 签名密钥与密码存放在本地 `local.properties`（键名：`shunshun.storeFile`、`shunshun.storePassword`、`shunshun.keyAlias`、`shunshun.keyPassword`），不随仓库分发；缺少这些配置时仍可正常构建 Debug APK，但 `assembleRelease` 会因缺少签名配置而无法签名。
+
 最低支持 Android 8.0（API 26）。
 
 ## APK
 
-仓库根目录的 `便便晴天-v1.10.0-debug.apk` 是当前可直接安装的 Debug APK。
+各版本的 APK 请到 [GitHub Releases](https://github.com/yusheng266186-beep/shunshun-android/releases) 页面下载（每个 Release 的资产中附有对应版本的 Debug APK）；也可以在 [GitHub Actions](https://github.com/yusheng266186-beep/shunshun-android/actions) 的构建产物中获取最新 master 分支自动构建的 Debug APK。仓库中不再直接存放 APK 文件。
 
 本应用仅用于个人生活记录，不构成医疗诊断或治疗建议。

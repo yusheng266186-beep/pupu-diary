@@ -9,3 +9,9 @@ captures/
 .externalNativeBuild/
 .cxx/
 .codex-remote-attachments/
+
+# 构建产物与密钥不入库
+*.apk
+*.jks
+app/build/
+.DS_Store
