@@ -111,6 +111,17 @@ PoopRecord(id, time: Long, bristol: Int 1–7, mood: Int 0–4, smoothness: Int 
 
 ## 10. 更新日志
 
+### v4.0.0（大版本：全量评估后的缺陷清账 + 记录历史与打卡沉淀）
+> 本版源自一次逐文件代码审查（24 文件全读），修掉全部已知缺陷并把"回看与关联"能力补齐。
+- **缺陷修复**：① 每周自动备份的到期判断因日期格式不匹配（yyyyMMdd 被 ISO 解析）永远走到期分支，实际每次启动都在备份——抽出纯函数 `Backup.isBackupDue` 修复并补回归测试；② 隐私模式只在 onResume 挂 FLAG_SECURE，设置后立即上滑仍会被截图——改在 AppRoot 用 DisposableEffect 即时挂/摘；③ 强制夜间时状态栏图标仍是深色（enableEdgeToEdge 默认只跟系统）——按 App 解析出的 isDark 同步 WindowInsetsController；④ edge-to-edge 下 adjustResize 失效，记录页键盘弹出盖住保存按钮——页面加 imePadding；⑤ 底部导航图标与文字间距用错 Spacer.width 恒为 0——改 height；⑥ 开屏落下起点写死像素——改 720dp 换算；⑦ CrashLog 超 60KB 整份清空（注释写的是环形）——改为真环形截尾；⑧ 主题预览点只画 4/5 套——画全
+- **新页面与功能**：全部记录时间线（统计页「查看全部」入口，LazyColumn 按月分组、按 Bristol 分组筛选，行可编辑/删除撤销）；补记时间从 5 个固定芯片升级为通用「年/月/日/时/分」步进对话框；颜色日记 6→8 色（新增黑色=柏油样警惕上消化道出血、陶土色=胆道信号；红棕解读改为"可能带血"，贴士速查同步，旧 0..5 含义不变向后兼容）；「从自动备份恢复」应用内直接选用每周备份（此前只能去文件管理器翻 JSON）；「崩溃诊断日志」应用内查看与分享；桌面长按图标静态快捷方式一步直达记录页；打卡（水/运动/纤维）镜像入库 DB v5 `checkins` 表，统计「规律小发现」新增喝水×顺滑度关联洞察（达标日与未达标日各 ≥3 天才比较、差 ≥5 分才提示）
+- **交互与跟手**：顺滑度滑杆取值改用与渲染同款的坐标反函数（拇指中心=触点，两端不再偏半个拇指），拖动中近零滞后、松手才弹性；时间步进器支持长按连发（400ms 后 80ms/步）；撤销条底部加 5 秒倒计时细线；记录页表单全面 rememberSaveable，切 Tab/进程回收草稿不丢；年视图格子可点下钻到对应月；编辑层补 fade+scale 转场（原硬切）
+- **内容增强**：日历格（周条/月格/单日卡）从恒画 4 型改为当天最常见形状；备注加 50 字计数器；时长芯片加 30 分钟档；CSV 表头前加元信息行（版本/导出日/条数/范围）
+- **动效与性能**：首页场景（太阳/云/草/微光）从 4 路 60fps infiniteTransition 合并为约 12fps 单 tick（全屏 Canvas 重绘开销降约 5 倍），角色呼吸/眨眼仍 60fps 且拆为独立 Canvas；PoopCharacter 新增 blinking 参数（滑杆拇指/头像不再无谓眨眼）；检测系统「移除动画」（animator_duration_scale==0）后开屏直接跳过、色过渡/图表入场改瞬时；统计三指标全部补滚动递增动画；问候与"今日"计数分钟级刷新，长驻跨午夜不再过期
+- **无障碍**：Bristol 卡/主题点等补 contentDescription 与选中语义；Plus/Minus、NavCircle、BackHeader、删除钮触控区统一 ≥44dp；浅色五板 textSub 统一加深一档贴近 WCAG AA；夜间 Material onPrimary 用各主题自身 bg 而非写死一色
+- **工程**：单测 12→26（新增 BackupDue/Csv/Insights 三个测试类，buildBars/buildInsights/extraInfo 抽为纯函数）；CI 改用 ./gradlew；PupuApp（Application）持有 AppState 进程级单例，记录列表变更统一回主线程；删除过时 deploy_github.py；文档同步修正 README 分支表与 ARCHITECTURE 模块图
+- versionCode 15
+
 ### v3.0.0（大版本：夜间模式 + 医生视角 + 交互补全）
 - **夜间模式**：五套主题各配暖炭色深色版（DARK_PALETTES 与浅色同索引对应，深色下 primaryDeep 反转为浅色强调），「我的 → 隐私设置」新增跟随系统 / 常开 / 常关三选；切换沿用 AnimatedAppPalette 的 450ms 全色过渡，无需额外动画；首页场景夜间化——太阳化作月牙（夜空色掩膜）、云与小花降低不透明度、贴士徽章换深色底；MaterialTheme 映射同步切 darkColorScheme
 - **CSV 医生查看版**：新增 `util/Csv`——时间 / 形状(Bristol+名称) / 颜色 / 心情 / 顺滑度 / 时长 / 腹痛 / 费力 / 未排净 / 备注 十列，UTF-8 BOM 保证 Excel 双击不乱码；入口在「我的 → 数据备份」，经 SAF 存储选择器落盘

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.pupu.diary.data.PoopRecord
@@ -20,7 +21,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
-/** 应用级状态：记录、偏好、每日打卡 */
+/** 应用级状态：记录、偏好、每日打卡（进程级实例，见 PupuApp） */
 class AppState(context: Context) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -29,6 +30,8 @@ class AppState(context: Context) {
     val prefs = Prefs(appContext)
 
     val records = mutableStateListOf<PoopRecord>()
+    /** 打卡历史 day(yyyyMMdd) -> [water, exercise, fiber]，v4.0.0 起沉淀进 DB v5 */
+    val checkins = mutableStateMapOf<String, IntArray>()
     var loaded by mutableStateOf(false)
         private set
     var themeIndex by mutableIntStateOf(prefs.themeIndex)
@@ -70,13 +73,27 @@ class AppState(context: Context) {
     init {
         scope.launch {
             prefs.pruneOldDayKeys()
-            records.addAll(db.all())
-            water = prefs.todayWater()
-            exercise = prefs.todayExercise()
-            fiber = prefs.todayFiber()
-            loaded = true
+            val rows = db.all()
+            val ck = db.loadCheckins()
+            val w = prefs.todayWater()
+            val ex = prefs.todayExercise()
+            val fb = prefs.todayFiber()
+            withContext(Dispatchers.Main) {
+                records.addAll(rows)
+                checkins.putAll(ck)
+                water = w
+                exercise = ex
+                fiber = fb
+                loaded = true
+            }
             maybeAutoBackup()
         }
+    }
+
+    /** 内存列表只在主线程变更，DB 写在 IO 线程 */
+    private fun sortedInsert(r: PoopRecord) {
+        records.add(0, r)
+        records.sortByDescending { it.time }
     }
 
     fun addRecord(
@@ -99,24 +116,25 @@ class AppState(context: Context) {
                 straining = straining, incomplete = incomplete
             )
             val id = db.insert(r)
-            records.add(0, r.copy(id = id))
-            records.sortByDescending { it.time }
+            withContext(Dispatchers.Main) { sortedInsert(r.copy(id = id)) }
         }
     }
 
     fun updateRecord(r: PoopRecord) {
         scope.launch {
             db.update(r)
-            val idx = records.indexOfFirst { it.id == r.id }
-            if (idx >= 0) records[idx] = r
-            records.sortByDescending { it.time }
+            withContext(Dispatchers.Main) {
+                val idx = records.indexOfFirst { it.id == r.id }
+                if (idx >= 0) records[idx] = r
+                records.sortByDescending { it.time }
+            }
         }
     }
 
     fun deleteRecord(r: PoopRecord) {
         scope.launch {
             db.delete(r.id)
-            records.removeAll { it.id == r.id }
+            withContext(Dispatchers.Main) { records.removeAll { it.id == r.id } }
         }
     }
 
@@ -127,7 +145,9 @@ class AppState(context: Context) {
         undoJob?.cancel()
         undoJob = scope.launch {
             delay(5000)
-            if (pendingUndo?.time == r.time && pendingUndo?.bristol == r.bristol) pendingUndo = null
+            withContext(Dispatchers.Main) {
+                if (pendingUndo?.id == r.id) pendingUndo = null
+            }
         }
     }
 
@@ -138,8 +158,7 @@ class AppState(context: Context) {
         undoJob?.cancel()
         scope.launch {
             val id = db.insert(r)
-            records.add(0, r.copy(id = id))
-            records.sortByDescending { it.time }
+            withContext(Dispatchers.Main) { sortedInsert(r.copy(id = id)) }
         }
     }
 
@@ -147,26 +166,29 @@ class AppState(context: Context) {
     fun clearAllRecords() {
         scope.launch {
             db.clearAll()
-            records.clear()
+            withContext(Dispatchers.Main) { records.clear() }
         }
     }
 
-    /** 从备份 JSON 合并记录（按时间去重），回调返回新增条数 */
+    /** 从备份 JSON 合并记录（按时间+形状去重），回调返回新增条数 */
     fun importFromJson(json: String, onDone: (Int) -> Unit) {
         scope.launch {
             val parsed = Backup.parse(json)
-            val existing = db.allTimes().toHashSet()
+            val existing = db.all().map { "${it.time}|${it.bristol}" }.toHashSet()
             var added = 0
             parsed.forEach { r ->
-                if (r.time !in existing) {
+                val key = "${r.time}|${r.bristol}"
+                if (existing.add(key)) {
                     db.insert(r)
-                    existing.add(r.time)
                     added++
                 }
             }
             if (added > 0) {
-                records.clear()
-                records.addAll(db.all())
+                val rows = db.all()
+                withContext(Dispatchers.Main) {
+                    records.clear()
+                    records.addAll(rows)
+                }
             }
             withContext(Dispatchers.Main) { onDone(added) }
         }
@@ -198,19 +220,26 @@ class AppState(context: Context) {
         if (on) maybeAutoBackup()
     }
 
-    fun addWater(n: Int = 1) {
-        water = (water + n).coerceAtLeast(0)
-        prefs.setTodayWater(water)
-    }
+    /** 打卡：prefs 保持"今天"的即时读源，同时镜像进 DB 供历史关联分析 */
+    fun addWater(n: Int = 1) = addCheckin(n = n, day = "water")
+    fun addExercise(n: Int) = addCheckin(n = n, day = "exercise")
+    fun addFiber(n: Int) = addCheckin(n = n, day = "fiber")
 
-    fun addExercise(n: Int) {
-        exercise = (exercise + n).coerceAtLeast(0)
-        prefs.setTodayExercise(exercise)
-    }
-
-    fun addFiber(n: Int) {
-        fiber = (fiber + n).coerceAtLeast(0)
-        prefs.setTodayFiber(fiber)
+    private fun addCheckin(n: Int, day: String) {
+        when (day) {
+            "water" -> water = (water + n).coerceAtLeast(0)
+            "exercise" -> exercise = (exercise + n).coerceAtLeast(0)
+            "fiber" -> fiber = (fiber + n).coerceAtLeast(0)
+        }
+        val (w, ex, fb) = Triple(water, exercise, fiber)
+        when (day) {
+            "water" -> prefs.setTodayWater(w)
+            "exercise" -> prefs.setTodayExercise(ex)
+            "fiber" -> prefs.setTodayFiber(fb)
+        }
+        val key = todayKey()
+        checkins[key] = intArrayOf(w, ex, fb)
+        scope.launch { db.upsertCheckin(key, w, ex, fb) }
     }
 
     fun setRecordReminder(context: Context, on: Boolean, min: Int) {
@@ -259,21 +288,16 @@ class AppState(context: Context) {
         }
     }
 
-    /** 距上次自动备份 ≥7 天时静默备份到应用目录 */
+    /** 距上次自动备份 ≥7 天时静默备份到应用目录（v4.0.0 修复日期格式解析，周期间隔真正生效） */
     private fun maybeAutoBackup() {
         if (!autoBackupOn) return
-        val due = try {
-            val last = prefs.lastAutoBackup
-            last.isEmpty() || LocalDate.parse(last).plusDays(7) <= LocalDate.now()
+        if (!Backup.isBackupDue(prefs.lastAutoBackup, LocalDate.now())) return
+        val snapshot = records.toList()
+        if (snapshot.isEmpty()) return
+        try {
+            Backup.autoBackup(appContext, snapshot)
+            prefs.lastAutoBackup = todayKey()
         } catch (_: Exception) {
-            true
-        }
-        if (due && records.isNotEmpty()) {
-            try {
-                Backup.autoBackup(appContext, records.toList())
-                prefs.lastAutoBackup = todayKey()
-            } catch (_: Exception) {
-            }
         }
     }
 }

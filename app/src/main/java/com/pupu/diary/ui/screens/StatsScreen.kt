@@ -71,26 +71,43 @@ import com.pupu.diary.ui.components.EmptyState
 import com.pupu.diary.ui.components.PupuDialog
 import com.pupu.diary.ui.components.SoftCard
 import com.pupu.diary.ui.theme.LocalAppPalette
+import com.pupu.diary.data.extraInfo
+import com.pupu.diary.util.buildBars
+import com.pupu.diary.util.buildInsights
 import com.pupu.diary.util.formatFullCn
 import com.pupu.diary.util.toLocalDate
 import com.pupu.diary.util.toStartMs
 import com.pupu.diary.util.weekdayCn
-import java.time.Instant
+import kotlinx.coroutines.delay
 import java.time.LocalDate
-import java.time.ZoneId
 import kotlin.math.roundToInt
 
 @Composable
-fun StatsScreen(state: AppState, onEdit: (PoopRecord) -> Unit = {}) {
+fun StatsScreen(
+    state: AppState,
+    onEdit: (PoopRecord) -> Unit = {},
+    onShowAll: () -> Unit = {}
+) {
     val palette = LocalAppPalette.current
     var range by remember { mutableIntStateOf(1) }
+    // v4.0.0：翻月偏移提升到本层，供年视图下钻联动
+    var monthOffset by remember { mutableIntStateOf(0) }
 
-    val todayStart = remember { LocalDate.now().toStartMs() }
+    // v4.0.0：分钟级"今天"刷新，长驻统计页跨午夜后范围与日卡自动更新
+    var today by remember { mutableStateOf(LocalDate.now()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            val d = LocalDate.now()
+            if (d != today) today = d
+            delay(60_000)
+        }
+    }
+    val todayStart = today.toStartMs()
     val startMs = when (range) {
         0 -> todayStart
-        1 -> LocalDate.now().minusDays(6).toStartMs()
-        3 -> LocalDate.now().minusMonths(11).withDayOfMonth(1).toStartMs()
-        else -> LocalDate.now().minusDays(29).toStartMs()
+        1 -> today.minusDays(6).toStartMs()
+        3 -> today.minusMonths(11).withDayOfMonth(1).toStartMs()
+        else -> today.minusDays(29).toStartMs()
     }
     val inRange = state.records.filter { it.time >= startMs }
     // 数据戳：条数 + 逐条哈希，编辑/增删记录（含颜色与状态字段）后缓存图表自动失效重算
@@ -98,29 +115,31 @@ fun StatsScreen(state: AppState, onEdit: (PoopRecord) -> Unit = {}) {
 
     // 环比：与等长的上一周期对比（日 vs 昨天 / 周 vs 前 7 天 / 月 vs 前 30 天 / 年 vs 前 12 个月）
     val prevStartMs = when (range) {
-        0 -> LocalDate.now().minusDays(1).toStartMs()
-        1 -> LocalDate.now().minusDays(13).toStartMs()
-        3 -> LocalDate.now().minusMonths(23).withDayOfMonth(1).toStartMs()
-        else -> LocalDate.now().minusDays(59).toStartMs()
+        0 -> today.minusDays(1).toStartMs()
+        1 -> today.minusDays(13).toStartMs()
+        3 -> today.minusMonths(23).withDayOfMonth(1).toStartMs()
+        else -> today.minusDays(59).toStartMs()
     }
     val prevRange = state.records.filter { it.time >= prevStartMs && it.time < startMs }
     val prevAvg = if (prevRange.isNotEmpty()) prevRange.map { it.smoothness }.average().roundToInt() else null
-    val (bars, labels) = remember(range, dataStamp) {
-        buildBars(state.records, range, todayStart)
+    // 图表与洞察构建已抽到 util/Insights.kt（纯 JVM，有单测）
+    val (bars, labels) = remember(range, dataStamp, today) {
+        buildBars(state.records, range, today)
     }
 
     val total = inRange.size
-    val animTotal by animateIntAsState(
-        targetValue = total,
-        animationSpec = tween(600),
-        label = "total"
-    )
+    val animTotal by animateIntAsState(targetValue = total, animationSpec = tween(600), label = "total")
     val avgSmooth = if (inRange.isNotEmpty()) inRange.map { it.smoothness }.average().roundToInt() else 0
     val daysCount = inRange.map { it.time.toLocalDate() }.distinct().size
+    // v4.0.0：三指标全部滚动递增（此前只有次数有动画）
+    val animAvg by animateIntAsState(targetValue = avgSmooth, animationSpec = tween(600), label = "avg")
+    val animDays by animateIntAsState(targetValue = daysCount, animationSpec = tween(600), label = "days")
     val common = inRange.groupingBy { it.bristol }.eachCount().maxByOrNull { it.value }?.key
     val segments = (0..3).map { g -> g to inRange.count { Bristol.groupOf(it.bristol) == g } }
         .filter { it.second > 0 }
-    val insightLines = remember(dataStamp) { buildInsights(state.records) }
+    val insightLines = remember(dataStamp, state.checkins.size) {
+        buildInsights(state.records, state.checkins, today)
+    }
     val rangeTitle = listOf("今日", "最近 7 天", "最近 30 天", "近 12 个月")[range]
 
     Column(
@@ -148,8 +167,8 @@ fun StatsScreen(state: AppState, onEdit: (PoopRecord) -> Unit = {}) {
                     horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceEvenly
                 ) {
                     SummaryMetric("$animTotal", "记录次数")
-                    SummaryMetric("$daysCount", "记录天数")
-                    SummaryMetric("$avgSmooth%", "平均顺滑")
+                    SummaryMetric("$animDays", "记录天数")
+                    SummaryMetric("$animAvg%", "平均顺滑")
                 }
                 // 环比行入场：淡入 + 上移（仅在上一周期有数据时出现）
                 androidx.compose.animation.AnimatedVisibility(
@@ -200,7 +219,18 @@ fun StatsScreen(state: AppState, onEdit: (PoopRecord) -> Unit = {}) {
             Spacer(Modifier.height(14.dp))
         }
 
-        RangeCalendar(state.records, dataStamp, range, onEdit = onEdit, onDelete = { state.removeWithUndo(it) })
+        RangeCalendar(
+            state.records, dataStamp, range, monthOffset,
+            onMonthChange = { monthOffset = it },
+            onPickMonth = { ym ->
+                // v4.0.0：年视图格子可点，下钻到对应月的月视图
+                range = 2
+                monthOffset = java.time.temporal.ChronoUnit.MONTHS
+                    .between(java.time.YearMonth.from(today), ym).toInt()
+            },
+            onEdit = onEdit,
+            onDelete = { state.removeWithUndo(it) }
+        )
         Spacer(Modifier.height(14.dp))
 
         SoftCard(modifier = Modifier.fillMaxWidth()) {
@@ -268,7 +298,24 @@ fun StatsScreen(state: AppState, onEdit: (PoopRecord) -> Unit = {}) {
             }
         }
         Spacer(Modifier.height(16.dp))
-        Text("最近记录", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = palette.textMain)
+        // v4.0.0：时间线入口——最近记录不再只给 8 条
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("最近记录", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = palette.textMain)
+            Spacer(Modifier.weight(1f))
+            Text(
+                "查看全部 ›",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = palette.primaryDeep,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { onShowAll() }
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            )
+        }
         Spacer(Modifier.height(8.dp))
         if (state.records.isEmpty()) {
             EmptyState(
@@ -345,16 +392,6 @@ private fun DeltaText(label: String, delta: Int) {
         fontWeight = FontWeight.SemiBold,
         color = if (delta >= 0) palette.primaryDeep else Color(0xFFD06A5A)
     )
-}
-
-/** 颜色 + 身体状态的附加摘要（仅在记录里出现时展示） */
-private fun extraInfo(r: PoopRecord): String {
-    val parts = mutableListOf<String>()
-    r.colorType?.let { parts.add(PoopColors.label(it)) }
-    if (r.abdominalPain) parts.add("腹痛")
-    if (r.straining) parts.add("费力")
-    if (r.incomplete) parts.add("未排净")
-    return parts.joinToString(" · ")
 }
 
 @Composable
@@ -452,7 +489,7 @@ private fun RecentRow(r: PoopRecord, onEdit: (PoopRecord) -> Unit, onDelete: () 
                     buildString {
                         append("${r.bristol}型 ${Bristol.label(r.bristol)} · 心情${Moods.labels[r.mood.coerceIn(0, 4)]}")
                         if (r.durationMin > 0) append(" · ${r.durationMin} 分钟")
-                        val extra = extraInfo(r)
+                        val extra = r.extraInfo()
                         if (extra.isNotEmpty()) append(" · $extra")
                     },
                     fontSize = 11.sp,
@@ -481,9 +518,10 @@ private fun RecentRow(r: PoopRecord, onEdit: (PoopRecord) -> Unit, onDelete: () 
                 )
             }
             Spacer(Modifier.width(6.dp))
+            // v4.0.0：删除钮触控区 36→44dp
             Box(
                 Modifier
-                    .size(36.dp)
+                    .size(44.dp)
                     .semantics { contentDescription = "删除这条记录" }
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
@@ -511,134 +549,20 @@ private fun RecentRow(r: PoopRecord, onEdit: (PoopRecord) -> Unit, onDelete: () 
     }
 }
 
-private fun buildBars(
-    records: List<PoopRecord>,
-    range: Int,
-    todayStart: Long
-): Pair<List<Float>, List<String>> {
-    val zone = ZoneId.systemDefault()
-    return when (range) {
-        0 -> {
-            val values = MutableList(12) { 0f }
-            records.forEach { r ->
-                if (r.time >= todayStart) {
-                    val hour = Instant.ofEpochMilli(r.time).atZone(zone).hour
-                    values[hour / 2] += 1f
-                }
-            }
-            values to (0..11).map { "${it * 2}" }
-        }
-        1 -> {
-            val today = LocalDate.now()
-            val values = MutableList(7) { 0f }
-            (0..6).forEach { d ->
-                val date = today.minusDays((6 - d).toLong())
-                values[d] = records.count {
-                    it.time >= date.toStartMs() && it.time < date.plusDays(1).toStartMs()
-                }.toFloat()
-            }
-            values to (0..6).map { d ->
-                weekdayCn(today.minusDays((6 - d).toLong())).substring(1)
-            }
-        }
-        2 -> {
-            val today = LocalDate.now()
-            val values = MutableList(10) { 0f }
-            (0..9).forEach { b ->
-                val s = today.minusDays((29 - b * 3).toLong()).toStartMs()
-                val e = today.minusDays((26 - b * 3).toLong()).toStartMs()
-                values[b] = records.count { it.time >= s && it.time < e }.toFloat()
-            }
-            values to (0..9).map { b ->
-                val start = today.minusDays((29 - b * 3).toLong())
-                "${start.monthValue}/${start.dayOfMonth}"
-            }
-        }
-        else -> buildMonthBars(records)
-    }
-}
-
-/** 近 12 个月柱状数据 */
-private fun buildMonthBars(records: List<PoopRecord>): Pair<List<Float>, List<String>> {
-    val start = LocalDate.now().minusMonths(11).withDayOfMonth(1)
-    val values = MutableList(12) { 0f }
-    records.forEach { r ->
-        val d = r.time.toLocalDate()
-        val diff = (d.year - start.year) * 12 + (d.monthValue - start.monthValue)
-        if (diff in 0..11) values[diff] += 1f
-    }
-    val labels = (0..11).map { b -> "${start.plusMonths(b.toLong()).monthValue}月" }
-    return values to labels
-}
-
-/** 连续有记录的天数（今天或昨天起算） */
-private fun streakDays(records: List<PoopRecord>): Int {
-    if (records.isEmpty()) return 0
-    val days = records.map { it.time.toLocalDate() }.toHashSet()
-    var d = LocalDate.now()
-    if (d !in days) d = d.minusDays(1)
-    var n = 0
-    while (d in days) {
-        n++
-        d = d.minusDays(1)
-    }
-    return n
-}
-
-private fun buildInsights(records: List<PoopRecord>): List<String> {
-    if (records.size < 3) return emptyList()
-    val out = mutableListOf<String>()
-
-    // 连续记录天数
-    val streak = streakDays(records)
-    if (streak >= 2) out.add("已经连续 $streak 天有记录啦，坚持得很棒！")
-
-    // 常打卡时段
-    val zone = ZoneId.systemDefault()
-    val bucket = records.groupBy { r ->
-        val h = Instant.ofEpochMilli(r.time).atZone(zone).hour
-        when (h) {
-            in 5..10 -> "清晨"
-            in 11..13 -> "中午"
-            in 14..17 -> "下午"
-            in 18..22 -> "晚上"
-            else -> "深夜"
-        }
-    }.maxByOrNull { it.value.size }?.key
-    if (bucket != null) out.add("你最常在${bucket}打卡～")
-
-    // 平均顺滑度
-    val avg = records.map { it.smoothness }.average().roundToInt()
-    out.add("平均顺滑度 $avg%，${if (avg >= 60) "状态在线" else "多喝水会更好"}")
-
-    // 身体状态预警（v2.2.0 新增字段，最近 10 条里出现较频才提示）
-    val recent = records.take(10)
-    val painCount = recent.count { it.abdominalPain }
-    if (painCount >= 3) {
-        out.add("最近 10 条中有 $painCount 次腹痛，若持续不适建议咨询医生")
-    } else if (recent.count { it.straining || it.incomplete } >= 3) {
-        out.add("最近常觉得费力或没排净，多喝水、多吃纤维会舒服些")
-    }
-
-    // 常见心情
-    val mood = records.groupingBy { it.mood }.eachCount().maxByOrNull { it.value }?.key
-    if (mood != null) out.add("记录时的心情多是「${Moods.labels[mood.coerceIn(0, 4)]}」")
-
-    return out.take(4)
-}
-
 /** 范围日历：随上方日/周/月/年切换视图形态（单日卡 / 周条 / 月格 / 年格），切换带缩放过渡；有记录的日子可点开当日明细 */
 @Composable
 private fun RangeCalendar(
     records: List<PoopRecord>,
     dataStamp: Long,
     range: Int,
+    monthOffset: Int,
+    onMonthChange: (Int) -> Unit,
+    onPickMonth: (java.time.YearMonth) -> Unit,
     onEdit: (PoopRecord) -> Unit,
     onDelete: (PoopRecord) -> Unit
 ) {
     val palette = LocalAppPalette.current
     val today = LocalDate.now()
-    var monthOffset by remember { mutableIntStateOf(0) }
     var selectedDay by remember { mutableStateOf<LocalDate?>(null) }
 
     val counts = remember(dataStamp) {
@@ -646,6 +570,12 @@ private fun RangeCalendar(
     }
     val monthCounts = remember(dataStamp) {
         records.groupingBy { java.time.YearMonth.from(it.time.toLocalDate()) }.eachCount()
+    }
+    // v4.0.0：日历格画当天最常见形状（此前恒画 4 型，图标不带信息量）
+    val dayTypes = remember(dataStamp) {
+        records.groupBy { it.time.toLocalDate() }.mapValues { e ->
+            e.value.groupingBy { it.bristol }.eachCount().maxBy { it.value }.key
+        }
     }
 
     SoftCard(modifier = Modifier.fillMaxWidth()) {
@@ -664,12 +594,12 @@ private fun RangeCalendar(
                     0 -> DayCard(
                         date = today,
                         count = counts[today] ?: 0,
-                        firstType = records.firstOrNull { it.time.toLocalDate() == today }?.bristol,
+                        firstType = dayTypes[today],
                         onClick = { selectedDay = today }
                     )
-                    1 -> WeekStrip(today, counts) { selectedDay = it }
-                    3 -> YearGrid(today, monthCounts)
-                    else -> MonthGrid(counts, monthOffset, { monthOffset = it }) { selectedDay = it }
+                    1 -> WeekStrip(today, counts, dayTypes) { selectedDay = it }
+                    3 -> YearGrid(today, monthCounts, onPickMonth)
+                    else -> MonthGrid(counts, dayTypes, monthOffset, { onMonthChange(it) }) { selectedDay = it }
                 }
             }
         }
@@ -724,7 +654,7 @@ private fun RangeCalendar(
                                     buildString {
                                         append("${r.bristol}型 ${Bristol.label(r.bristol)} · 顺滑 ${r.smoothness}%")
                                         if (r.durationMin > 0) append(" · ${r.durationMin} 分钟")
-                                        val extra = extraInfo(r)
+                                        val extra = r.extraInfo()
                                         if (extra.isNotEmpty()) append(" · $extra")
                                     },
                                     fontSize = 11.sp,
@@ -840,6 +770,7 @@ private fun DayCard(date: LocalDate, count: Int, firstType: Int?, onClick: () ->
 private fun WeekStrip(
     today: LocalDate,
     counts: Map<LocalDate, Int>,
+    dayTypes: Map<LocalDate, Int>,
     onDayClick: (LocalDate) -> Unit
 ) {
     val palette = LocalAppPalette.current
@@ -875,7 +806,7 @@ private fun WeekStrip(
                     contentAlignment = Alignment.Center
                 ) {
                     if (count > 0) {
-                        BristolIcon(type = 4, size = 20.dp)
+                        BristolIcon(type = dayTypes[date] ?: 4, size = 20.dp)
                     } else {
                         Text("${date.dayOfMonth}", fontSize = 11.sp, color = palette.textSub)
                     }
@@ -896,6 +827,7 @@ private fun WeekStrip(
 @Composable
 private fun MonthGrid(
     counts: Map<LocalDate, Int>,
+    dayTypes: Map<LocalDate, Int>,
     monthOffset: Int,
     onMonthChange: (Int) -> Unit,
     onDayClick: (LocalDate) -> Unit
@@ -973,10 +905,11 @@ private fun MonthGrid(
                                             horizontalAlignment = Alignment.CenterHorizontally,
                                             verticalArrangement = Arrangement.Center
                                         ) {
-                                            BristolIcon(type = 4, size = 15.dp)
+                                            BristolIcon(type = dayTypes[date] ?: 4, size = 15.dp)
+                                            // v4.0.0：8sp→10sp，小屏上更易读
                                             Text(
                                                 "$day",
-                                                fontSize = 8.sp,
+                                                fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = palette.primaryDeep
                                             )
@@ -1001,11 +934,12 @@ private fun MonthGrid(
     }
 }
 
-/** 年视图：近 12 个月格子 */
+/** 年视图：近 12 个月格子（v4.0.0：点击任意月格下钻到月视图） */
 @Composable
 private fun YearGrid(
     today: LocalDate,
-    monthCounts: Map<java.time.YearMonth, Int>
+    monthCounts: Map<java.time.YearMonth, Int>,
+    onPickMonth: (java.time.YearMonth) -> Unit
 ) {
     val palette = LocalAppPalette.current
     val start = today.minusMonths(11).withDayOfMonth(1)
@@ -1025,6 +959,11 @@ private fun YearGrid(
                             .background(if (count > 0) palette.primarySoft else palette.cardAlt.copy(alpha = 0.4f))
                             .then(
                                 if (isCurrent) Modifier.border(1.5.dp, palette.primary, RoundedCornerShape(14.dp)) else Modifier
+                            )
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { onPickMonth(ym) }
                             )
                             .padding(vertical = 14.dp),
                         contentAlignment = Alignment.Center
@@ -1053,11 +992,11 @@ private fun YearGrid(
 @Composable
 private fun NavCircle(direction: Int, label: String, onClick: () -> Unit) {
     val palette = LocalAppPalette.current
+    // v4.0.0：视觉 30dp，触控热区扩到 44dp
     Box(
         Modifier
-            .size(30.dp)
+            .size(44.dp)
             .clip(CircleShape)
-            .background(palette.cardAlt)
             .semantics { contentDescription = label }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -1066,7 +1005,14 @@ private fun NavCircle(direction: Int, label: String, onClick: () -> Unit) {
             ),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(Modifier.size(12.dp)) {
+        Box(
+            Modifier
+                .size(30.dp)
+                .clip(CircleShape)
+                .background(palette.cardAlt),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(Modifier.size(12.dp)) {
             val p = Path()
             if (direction < 0) {
                 p.moveTo(size.width * 0.65f, size.height * 0.2f)
@@ -1081,6 +1027,7 @@ private fun NavCircle(direction: Int, label: String, onClick: () -> Unit) {
                 p, palette.textMain,
                 style = Stroke(width = size.width * 0.22f, cap = StrokeCap.Round)
             )
+            }
         }
     }
 }

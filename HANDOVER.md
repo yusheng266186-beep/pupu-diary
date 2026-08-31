@@ -12,7 +12,7 @@
 
 | 分支 | 项目 | 当前版本 | 标签空间 | 状态 |
 |---|---|---|---|---|
-| `main` | **噗噗日记 Pupu Diary**（本清单的主角） | v3.0.0（versionCode 14） | `v*` | 活跃开发 |
+| `main` | **噗噗日记 Pupu Diary**（本清单的主角） | v4.0.0（versionCode 15） | `v*` | 活跃开发 |
 | `shunshun` | **便便晴天** | v1.11.0（versionCode 12） | `shunshun-v*` | 独立完整项目，保留原仓库全部 16 个提交历史 |
 
 - 两分支是**不相关历史**（由 main 上一个 `-s ours` 策略的 merge 提交联结），**不要在两分支之间互相提 PR**，会产生全量伪冲突。
@@ -29,7 +29,7 @@
 | `DESIGN.md`（main） | 噗噗日记的完整设计规格（色板令牌/动效参数/验收标准）+ **逐版本更新日志** | 改 UI 或查"某版本改了什么"时 |
 | `README.md`（shunshun 分支） | 便便晴天自己的说明 | 只在需要了解便便晴天时 |
 
-**技术栈速览（噗噗日记）：** Kotlin 2.0.21 · Jetpack Compose（BOM 2024.09）· Material3（自定义主题映射）· 裸 SQLiteOpenHelper（无 Room）· SharedPreferences · AlarmManager 提醒 · minSdk 26 / targetSdk 34 · applicationId `com.pupu.diary` · 数据库名 `pupu.db`（当前 version 4）· 偏好文件 `pupu_prefs`。除 Compose BOM 与基础 androidx 外**零第三方依赖**。
+**技术栈速览（噗噗日记）：** Kotlin 2.0.21 · Jetpack Compose（BOM 2024.09）· Material3（自定义主题映射）· 裸 SQLiteOpenHelper（无 Room）· SharedPreferences · AlarmManager 提醒 · minSdk 26 / targetSdk 34 · applicationId `com.pupu.diary` · 数据库名 `pupu.db`（当前 version 5：records + checkins）· 偏好文件 `pupu_prefs` · v4.0.0 起 AppState 挂在 Application（PupuApp）上为进程级单例。除 Compose BOM 与基础 androidx 外**零第三方依赖**。
 
 ---
 
@@ -57,7 +57,7 @@ cd "D:/ppt-master/shit app"    # 注意路径含空格，必须带引号
 
 ```bash
 ./gradlew testDebugUnitTest assembleDebug assembleRelease
-# 期望：BUILD SUCCESSFUL，12 个单测全过
+# 期望：BUILD SUCCESSFUL，26 个单测全过（v4.0.0 起含 BackupDue / Csv / Insights 三个新测试类）
 # 产物：app/build/outputs/apk/{debug,release}/
 ```
 
@@ -80,41 +80,49 @@ cd "D:/ppt-master/shit app"    # 注意路径含空格，必须带引号
 ## 4. 代码地图（main 分支，`app/src/main/java/com/pupu/diary/`）
 
 ```
-MainActivity.kt            # 入口：CrashLog.install → enableEdgeToEdge → AppState 单例 → AppRoot
-                           # onResume 按隐私模式增减 FLAG_SECURE；onNewIntent 接收通知导航
+PupuApp.kt                 # Application：进程级持有 AppState 单例（v4.0.0 起，Activity 重建不再重复建实例）
+MainActivity.kt            # 入口：CrashLog.install → enableEdgeToEdge → PupuApp.of(this).appState → AppRoot
+                           # onResume 兜底增减 FLAG_SECURE；onNewIntent 接收通知/快捷方式导航
 ├── data/
 │   ├── PoopRecord.kt      # 记录模型（id/time/bristol/mood/smoothness/note/durationMin/
-│   │                      #   colorType/abdominalPain/straining/incomplete）+ Bristol 分型 + PoopColors 色板
-│   ├── RecordDb.kt        # SQLiteOpenHelper，DB_VERSION=4；onUpgrade 增量 ALTER TABLE；全量读 all()
+│   │                      #   colorType 0..7/abdominalPain/straining/incomplete）+ Bristol 分型
+│   │                      #   + PoopColors 八色板（v4.0.0 新增 6 黑色 / 7 陶土色）+ extraInfo() 摘要扩展
+│   ├── RecordDb.kt        # SQLiteOpenHelper，DB_VERSION=5；checkins 表（day 主键）+ INSERT OR REPLACE upsert；onUpgrade 增量
 │   └── Prefs.kt           # SharedPreferences 封装：主题/夜间/隐私/双提醒/打卡/昵称/userId/自动备份
 ├── ui/
-│   ├── AppState.kt        # ★ 应用级状态单例：全量记录内存列表 + 全部偏好状态 + 所有写操作入口
+│   ├── AppState.kt        # ★ 应用级状态单例：全量记录 + 打卡历史(checkins) + 全部偏好；
+│   │                      #   所有写操作 DB 在 IO 线程、内存列表变更统一 withContext(Main)（v4.0.0）
 │   │                      #   （addRecord/updateRecord/deleteRecord/removeWithUndo/undoLastDelete/
-│   │                      #    importFromJson/setTheme/updateDarkMode/双提醒 reArmReminders…）
-│   ├── Root.kt            # AppRoot：夜间模式解析 → AnimatedAppPalette(450ms 全色过渡) → IntroScreen 开屏
-│   │                      #   MainScaffold：Tab 切换动画、贴士层、编辑层、BackHandler 逐级返回、UndoBar 挂载
-│   ├── theme/Palette.kt   # AppPalette 13 色令牌 ×5 浅色主题 + DARK_PALETTES ×5 深色 + toColorScheme 映射
+│   │                      #    importFromJson(时间+形状去重)/setTheme/updateDarkMode/addWater…/reArmReminders…）
+│   ├── Root.kt            # AppRoot：夜间解析 → AnimatedAppPalette(450ms) → 隐私模式即时挂 FLAG_SECURE（DisposableEffect）
+│   │                      #   → 系统栏图标明暗同步 isDark → LocalReduceMotion（系统移除动画检测）
+│   │                      #   MainScaffold：Tab/贴士/时间线(showAll)/编辑 四层 + BackHandler 逐级 + UndoBar 挂载
+│   ├── theme/Palette.kt   # AppPalette 13 色令牌 ×5 浅色(textSub v4.0.0 加深) + DARK_PALETTES ×5 + toColorScheme + LocalReduceMotion
 │   ├── screens/
-│   │   ├── HomeScreen     # 时段问候（带昵称）、治愈场景 Canvas（太阳/月牙/云/草丘/植物）、贴士徽章
-│   │   ├── RecordScreen   # 记录表单：形状/心情/顺滑度主表单 + 折叠区（颜色日记/三状态/时长/备注）
-│   │   │                  #   支持编辑模式（edit 参数，从统计页最近记录或当日明细进入）
-│   │   ├── StatsScreen    # 日/周/月/年四段 + 四形态范围日历 + 三指标 + 环比(DeltaLine) + 洞察 + 最近记录
-│   │   ├── TipsScreen     # 打卡（水/运动/纤维）+ Bristol 速查 + 颜色速查 + 6 张知识卡
-│   │   └── ProfileScreen  # 头像卡（点按设昵称）+ 六行设置 + 底部面板（提醒×2/隐私+夜间/备份+CSV/主题）
-│   └── components/        # Common(SoftCard/PupuDialog/PrimaryButton/UndoBar…)、PoopCharacter(呼吸眨眼)、
-│                          #   BristolIcons、MoodFace、Charts(柱状/环形)、BottomBar、Confetti
+│   │   ├── HomeScreen     # 30s 时钟刷新 today/问候；场景 Canvas 由约 12fps tick 驱动（太阳/云/草/微光合并计时）
+│   │   ├── RecordScreen   # 记录表单：全字段 rememberSaveable（草稿保活）+ imePadding + 1:1 跟手滑杆
+│   │   │                  #   + 自定义日期时间补记（DateTimeDialog）+ 8 色点 + 备注计数；支持编辑模式
+│   │   ├── StatsScreen    # 日/周/月/年（年格下钻月视图）+ 日历格画当天真实形状 + 三指标滚动动画
+│   │   │                  #   + 「查看全部」→ 时间线层；buildBars/buildInsights 已抽到 util/Insights
+│   │   ├── AllRecordsScreen # 全部记录时间线（v4.0.0）：LazyColumn 按月分组 + Bristol 分组筛选芯片 + 行编辑/删除撤销
+│   │   ├── TipsScreen     # 打卡 + Bristol 速查 + 8 色颜色速查（含就医警示）+ 6 知识卡；花朵插画夜间降透明
+│   │   └── ProfileScreen  # 头像卡 + 六行设置 + 面板（提醒×2+权限被拒引导/隐私+夜间/备份+CSV+自动备份恢复+诊断日志/主题×5）
+│   └── components/        # Common(SoftCard/PupuDialog/PrimaryButton/UndoBar 带倒计时/PupuStepper 长按连发/DateTimeDialog)、
+│   │                      #   PoopCharacter(呼吸眨眼，blinking 可关)、BristolIcons、MoodFace、Charts(入场尊重减动效)、BottomBar、Confetti
 └── util/
-    ├── Backup.kt          # JSON 备份 version 4（含新字段，旧格式可读），导出到下载目录 + 系统分享 + 每周静默备份
-    ├── Csv.kt             # 医生查看版 CSV（十列，UTF-8 BOM，Excel 直接打开）
-    ├── Reminders.kt       # AlarmManager 每日提醒（CODE_RECORD=1001/CODE_WATER=1002），触发后自续期，通知带 nav 参数
-    ├── BootReceiver.kt    # BOOT_COMPLETED + MY_PACKAGE_REPLACED 时重挂两个闹钟
-    ├── CrashLog.kt        # 未捕获异常追加到应用私有目录 files/logs/crash_log.txt（约 60KB 环形），再交回系统
+    ├── Backup.kt          # JSON 备份（解析容错）+ isBackupDue 纯函数（兼容 yyyyMMdd/ISO，v4.0.0 修复周期间隔）
+    │                      #   + autoBackupFiles()（应用内恢复入口的数据源）+ 导出下载目录/分享/每周静默备份
+    ├── Csv.kt             # 医生查看版 CSV（十列 + #元信息行，UTF-8 BOM，纯 JVM 可测）
+    ├── Insights.kt        # ★ 纯逻辑统计层：buildBars/buildInsights/streakDays（全项目无 Android 依赖，可 JVM 单测）
+    ├── Reminders.kt       # AlarmManager 每日提醒（CODE_RECORD=1001/CODE_WATER=1002），触发后自续期，通知带 nav
+    ├── BootReceiver.kt    # BOOT_COMPLETED + MY_PACKAGE_REPLACED 重挂闹钟
+    ├── CrashLog.kt        # 环形崩溃日志（真截尾）+ tail() 供应用内「诊断日志」查看/分享（cache-path FileProvider）
     └── Dates.kt           # 日期工具（纯 JVM，有单测）
 ```
 
 **三条核心数据流：**
 
-1. **记录**：RecordScreen → `AppState.addRecord/updateRecord` → `scope.launch(IO)` 写 SQLite → 同步刷新内存 `records`（mutableStateListOf）→ 各页自动重组。全量内存加载，统计在内存算。
+1. **记录**：RecordScreen → `AppState.addRecord/updateRecord` → `scope.launch(IO)` 写 SQLite → **`withContext(Main)` 同步刷新内存 `records`**（mutableStateListOf，v4.0.0 起所有列表变更统一在主线程）→ 各页自动重组。全量内存加载，统计在内存算。
 2. **统计**：`inRange = records.filter{}` + `dataStamp`（条数×31+逐条 hashCode）作为 `remember` 缓存键——**任何字段编辑都会改变哈希**，图表/洞察自动重算。
 3. **提醒**：Profile 设定 → `Reminders.schedule(code, minOfDay)` 一次性闹钟 → 触发时在 `ReminderReceiver` 里**自动续期明天** → 通知带 `nav=record/home` 参数 → MainActivity `navTarget` 直达对应页。
 
@@ -221,7 +229,16 @@ gh run list --repo yusheng266186-beep/pupu-diary --limit 3
     → 全新安装走 `onCreate`，老用户走 `onUpgrade`，两处建表/加列必须同步。DB_VERSION 与迁移分支号严格对应。
 
 14. **误跑 `deploy_github.py` 的风险**
-    → 这是早期的"一键发布"脚本：行为是 `git commit --amend` + **force push** + 按 hardcoded 列表重建全部 Release。它不适用于日常发布（日常发布走第 6 节流程），**不要随意运行**。
+    → ~~已消除~~：该脚本在 v4.0.0 已从仓库删除（它不适用于日常发布，且行为是 amend + force push + 重建全部 Release）。日常发布一律走第 6 节流程。
+
+15. **`Settings.Global.ANIMATION_SCALE` 在 Kotlin 里 unresolved**（v4.0.0 踩过）
+    → 该常量在部分 compileSdk 的 kotlin 映射里不可见。改用字符串字面量 `"animator_duration_scale"` 调 `Settings.Global.getFloat`，语义相同。
+
+16. **`rememberSaveable { mutableStateOf<Int?>(null) }` 不能编译**
+    → nullable Int 无默认 Saver。v4.0.0 记录页草稿的写法是：用哨兵 Int（0 / -1）存可保存状态，读取时 `takeIf { it > 0 }` / `(v-1).takeIf{ it>=0 }` 还原 null。加新草稿字段照此办理。
+
+17. **minSdk 26 别用 `ON CONFLICT` upsert**
+    → SQLite 3.24 才支持 upsert 语法，Android 8–10 的内置 SQLite 会挂。打卡表用的是兼容性最好的 `INSERT OR REPLACE`。
 
 ---
 

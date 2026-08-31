@@ -79,6 +79,31 @@ fun export(context: Context, records: List<PoopRecord>): ExportResult {
         File(dir, "pupu_auto_${todayKey()}.json").writeBytes(toJsonBytes(records))
     }
 
+    /** 列出应用内的自动备份文件（按文件名降序 = 按日期降序），供「从自动备份恢复」使用 */
+    fun autoBackupFiles(context: Context): List<File> {
+        val dir = File(context.getExternalFilesDir(null), "backups")
+        return dir.listFiles()?.filter { it.name.endsWith(".json") }
+            ?.sortedByDescending { it.name } ?: emptyList()
+    }
+
+    /**
+     * 自动备份是否到期：距上次成功备份 >= 7 天。
+     * 历史遗留兼容：旧版本曾把 yyyyMMdd（BASIC）与 yyyy-MM-dd（ISO）两种格式都写入过，
+     * 两者都要能解析；解析失败视为到期（v3.0.0 之前 lastAutoBackup 永远解析失败，导致每次都备份）。
+     */
+    fun isBackupDue(last: String, today: java.time.LocalDate): Boolean {
+        if (last.isEmpty()) return true
+        val lastDate = try {
+            when (last.length) {
+                8 -> java.time.LocalDate.parse(last, java.time.format.DateTimeFormatter.BASIC_ISO_DATE)
+                else -> java.time.LocalDate.parse(last)
+            }
+        } catch (_: Exception) {
+            return true
+        }
+        return lastDate.plusDays(7) <= today
+    }
+
     /** 解析备份 JSON，返回合法记录（按时间升序） */
     fun parse(json: String): List<PoopRecord> {
         return try {
@@ -96,7 +121,7 @@ fun export(context: Context, records: List<PoopRecord>): ExportResult {
                         smoothness = o.optInt("smoothness", 50).coerceIn(0, 100),
                         note = o.optString("note", ""),
                         durationMin = o.optInt("duration", 0).coerceIn(0, 120),
-                        colorType = if (color in 0..5) color else null,
+                        colorType = if (color in 0..7) color else null,
                         abdominalPain = o.optBoolean("abdominalPain", false),
                         straining = o.optBoolean("straining", false),
                         incomplete = o.optBoolean("incomplete", false)

@@ -92,8 +92,10 @@ fun TipsScreen(state: AppState, onBack: () -> Unit) {
                             topLeft = Offset(-w * 0.2f, h * 0.72f),
                             size = Size(w * 1.4f, h * 0.5f)
                         )
-                        flower(this, w * 0.24f, h * 0.80f, h * 0.26f, w)
-                        flower(this, w * 0.80f, h * 0.82f, h * 0.18f, w)
+                        // v4.0.0：夜间花朵降透明度，与首页场景同一处理语言
+                        val dim = if (palette.isDark) 0.55f else 1f
+                        flower(this, w * 0.24f, h * 0.80f, h * 0.26f, w, dim)
+                        flower(this, w * 0.80f, h * 0.82f, h * 0.18f, w, dim)
                     }
                     Box(
                         Modifier
@@ -213,25 +215,26 @@ private fun flower(
     x: Float,
     baseY: Float,
     stemH: Float,
-    w: Float
+    w: Float,
+    dim: Float = 1f
 ) {
     d.apply {
         val top = Offset(x, baseY - stemH)
         drawLine(
-            Color(0xFF6F9A6B),
+            Color(0xFF6F9A6B).copy(alpha = dim),
             Offset(x, baseY), top,
             strokeWidth = w * 0.012f, cap = StrokeCap.Round
         )
         repeat(5) { i ->
             rotate(degrees = i * 72f, pivot = top) {
                 drawCircle(
-                    Color(0xFFF2A69B),
+                    Color(0xFFF2A69B).copy(alpha = dim),
                     radius = w * 0.026f,
                     center = Offset(top.x, top.y - w * 0.036f)
                 )
             }
         }
-        drawCircle(Color(0xFFF2C14E), radius = w * 0.018f, center = top)
+        drawCircle(Color(0xFFF2C14E).copy(alpha = dim), radius = w * 0.018f, center = top)
     }
 }
 
@@ -450,7 +453,7 @@ private fun ProgressBar(fraction: Float) {
     }
 }
 
-/** 颜色日记速查：色点 + 名称 + 一句话解读（v3.0.0，与颜色日记功能配套） */
+/** 颜色日记速查：色点 + 名称 + 一句话解读（v4.0.0 扩到 8 色，补足黑便与陶土色警示） */
 @Composable
 private fun ColorGuide() {
     val palette = LocalAppPalette.current
@@ -459,8 +462,10 @@ private fun ColorGuide() {
         "最理想的状态，继续保持",
         "消化顺畅，正常范围",
         "偏浅了些，可能消化偏快",
-        "深色受饮食影响大，持续出现要留意",
-        "吃了特别的东西？对照看看"
+        "可能带血！受饮食影响较小，出现一次请留意，持续就医",
+        "吃了特别的东西？对照看看",
+        "柏油样黑便需警惕消化道出血，持续出现请尽快就医",
+        "灰白陶土色可能与胆道有关，反复出现请及时就医"
     )
     SoftCard(modifier = Modifier.fillMaxWidth(), corner = 24.dp) {
         Column(Modifier.padding(16.dp)) {
@@ -511,7 +516,7 @@ private fun ColorGuide() {
                 }
             }
             Text(
-                "颜色受饮食影响很大，仅作日常参考；若持续发黑或带血，请及时就医。",
+                "多数颜色变化受饮食影响，仅作日常参考；但红色、黑色、灰白色反复出现时别大意，请及时就医。",
                 fontSize = 10.sp,
                 color = palette.textSub,
                 lineHeight = 15.sp,

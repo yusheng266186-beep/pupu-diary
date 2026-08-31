@@ -14,14 +14,14 @@ import com.pupu.diary.util.Reminders
 
 class MainActivity : ComponentActivity() {
 
-    private lateinit var state: AppState
+    // v4.0.0：AppState 改为进程级单例（PupuApp 持有），Activity 重建不再重复加载
+    private val state: AppState by lazy { PupuApp.of(this).appState }
     private val navTarget = mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         CrashLog.install(applicationContext)
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        state = AppState(applicationContext)
         Reminders.ensureChannel(applicationContext)
         state.reArmReminders(applicationContext)
         navTarget.value = intent?.getStringExtra("nav")
@@ -30,13 +30,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         // App 在前台时点通知：singleTop 复用实例，从这里接收导航目标
         navTarget.value = intent.getStringExtra("nav")
     }
 
     override fun onResume() {
         super.onResume()
-        if (this::state.isInitialized && state.privacyMode) {
+        // FLAG_SECURE 的兜底（主路径在 AppRoot 里即时挂载，见 v4.0.0 修复）
+        if (state.privacyMode) {
             window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         } else {
             window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -40,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -66,6 +68,7 @@ import com.pupu.diary.BuildConfig
 import com.pupu.diary.ui.AppState
 import com.pupu.diary.ui.components.PoopCharacter
 import com.pupu.diary.ui.components.PupuDialog
+import com.pupu.diary.ui.components.PupuStepper
 import com.pupu.diary.ui.components.SoftCard
 import com.pupu.diary.ui.theme.LocalAppPalette
 import com.pupu.diary.ui.theme.PALETTES
@@ -89,10 +92,24 @@ fun ProfileScreen(state: AppState) {
     var showRecordTime by remember { mutableStateOf(false) }
     var showWaterTime by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
+    var showRestorePick by remember { mutableStateOf(false) }
+    var showCrashLog by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
+    // v4.0.0：通知权限被永久拒绝后的出路提示（permTick 在授权结果回调时自增触发重算）
+    var permTick by remember { mutableIntStateOf(0) }
+    val notifBlocked = remember(permTick) {
+        val act = context as? android.app.Activity
+        Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(
+                context, Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED &&
+            (act == null || !androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(
+                act, Manifest.permission.POST_NOTIFICATIONS
+            ))
+    }
     val permLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { }
+    ) { permTick++ }
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->        if (uri != null) {
@@ -126,8 +143,20 @@ fun ProfileScreen(state: AppState) {
             scope.launch {
                 val ok = withContext(Dispatchers.IO) {
                     try {
+                        val recs = state.records.toList()
+                        // v4.0.0：表头元信息（版本/导出日/条数/范围），医生一眼可辨数据出处
+                        val meta = mutableListOf(
+                            "由噗噗日记 v${BuildConfig.VERSION_NAME} 导出",
+                            "导出日期：${com.pupu.diary.util.todayKey()}",
+                            "记录条数：${recs.size}"
+                        )
+                        if (recs.isNotEmpty()) {
+                            meta.add(
+                                "日期范围：${com.pupu.diary.util.formatDateCn(recs.last().time)} ~ ${com.pupu.diary.util.formatDateCn(recs.first().time)}"
+                            )
+                        }
                         context.contentResolver.openOutputStream(uri)?.use {
-                            it.write(Csv.build(state.records.toList()))
+                            it.write(Csv.build(recs, meta))
                         }
                         true
                     } catch (_: Exception) {
@@ -252,12 +281,13 @@ fun ProfileScreen(state: AppState) {
                     iconKind = 4,
                     title = "主题颜色",
                     trailing = {
+                        // v4.0.0：预览点显示全部 5 套主题（此前只画了 4 个）
                         Row {
-                            PALETTES.take(4).forEach { p ->
+                            PALETTES.forEach { p ->
                                 Box(
                                     Modifier
-                                        .padding(horizontal = 3.dp)
-                                        .size(14.dp)
+                                        .padding(horizontal = 2.dp)
+                                        .size(11.dp)
                                         .clip(CircleShape)
                                         .background(p.primary)
                                 )
@@ -296,6 +326,7 @@ fun ProfileScreen(state: AppState) {
                     state.setRecordReminder(context, on, state.recordRemindMin)
                 }
             )
+            NotifBlockedHint(notifBlocked)
             SheetTimeRow(
                 enabled = state.recordRemindOn,
                 timeText = minutesToCn(state.recordRemindMin),
@@ -313,6 +344,7 @@ fun ProfileScreen(state: AppState) {
                     state.setWaterReminder(context, on, state.waterRemindMin)
                 }
             )
+            NotifBlockedHint(notifBlocked)
             SheetTimeRow(
                 enabled = state.waterRemindOn,
                 timeText = minutesToCn(state.waterRemindMin),
@@ -389,6 +421,15 @@ fun ProfileScreen(state: AppState) {
                 checked = state.autoBackupOn,
                 onToggle = { state.setAutoBackup(it) }
             )
+            // v4.0.0：自动备份此前只能去文件系统找，现在应用内可恢复；崩溃日志可见可分享
+            SheetActionRow(iconKind = 6, title = "从自动备份恢复", sub = "直接选用应用内保存的每周备份") {
+                panel = null
+                showRestorePick = true
+            }
+            SheetActionRow(iconKind = 5, title = "崩溃诊断日志", sub = "应用异常时反馈用，可查看并分享", danger = false) {
+                panel = null
+                showCrashLog = true
+            }
             SheetActionRow(iconKind = 8, title = "清空所有记录", sub = "不可恢复，建议先导出备份", danger = true) {
                 panel = null
                 showClearConfirm = true
@@ -509,6 +550,109 @@ fun ProfileScreen(state: AppState) {
         )
     }
 
+    // v4.0.0：应用内自动备份恢复（不用再去文件系统翻 JSON）
+    if (showRestorePick) {
+        val files = remember { Backup.autoBackupFiles(context) }
+        PupuDialog(
+            onDismissRequest = { showRestorePick = false },
+            title = "从自动备份恢复",
+            content = {
+                Column(Modifier.heightIn(max = 320.dp)) {
+                    if (files.isEmpty()) {
+                        Text("还没有自动备份文件～开启「每周自动备份」后，应用里会悄悄存最近 4 份。",
+                            fontSize = 13.sp, color = palette.textSub, lineHeight = 19.sp)
+                    } else {
+                        Text("选择一份备份导入（按时间去重合并，不会弄丢现有记录）：",
+                            fontSize = 12.sp, color = palette.textSub)
+                        Spacer(Modifier.height(6.dp))
+                        Column(Modifier.verticalScroll(rememberScrollState())) {
+                            files.forEach { f ->
+                                val day = f.name.removePrefix("pupu_auto_").removeSuffix(".json")
+                                Box(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null
+                                        ) {
+                                            showRestorePick = false
+                                            val json = try { f.readText() } catch (_: Exception) { null }
+                                            if (json.isNullOrBlank()) {
+                                                Toast.makeText(context, "读取备份失败", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                state.importFromJson(json) { added ->
+                                                    Toast.makeText(
+                                                        context,
+                                                        if (added > 0) "已从 $day 恢复 $added 条记录" else "这份备份里没有新记录",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                            }
+                                        }
+                                        .padding(vertical = 11.dp, horizontal = 10.dp)
+                                ) {
+                                    Text(
+                                        "${day.take(4)}-${day.drop(4).take(2)}-${day.takeLast(2)} 的备份",
+                                        fontSize = 14.sp, fontWeight = FontWeight.Medium, color = palette.textMain
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmText = "关闭"
+        )
+    }
+
+    // v4.0.0：崩溃诊断日志应用内查看与分享（此前只能 adb 取）
+    if (showCrashLog) {
+        val log = remember { com.pupu.diary.util.CrashLog.tail(context) }
+        PupuDialog(
+            onDismissRequest = { showCrashLog = false },
+            title = "崩溃诊断日志",
+            content = {
+                if (log.isBlank()) {
+                    Text("没有崩溃记录，应用很健康～", fontSize = 13.sp, color = palette.textSub)
+                } else {
+                    Text(
+                        log,
+                        fontSize = 9.sp,
+                        color = palette.textSub,
+                        lineHeight = 13.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 280.dp)
+                            .verticalScroll(rememberScrollState())
+                    )
+                }
+            },
+            confirmText = "分享日志",
+            onConfirm = {
+                showCrashLog = false
+                try {
+                    val cache = java.io.File(context.cacheDir, "pupu_diary_crash_log.txt")
+                    cache.writeText(log.ifBlank { "empty" })
+                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                        context, "${context.packageName}.files", cache
+                    )
+                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_TEXT, log)
+                        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                        clipData = android.content.ClipData.newRawUri("log", uri)
+                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(android.content.Intent.createChooser(send, "分享诊断日志"))
+                } catch (_: Exception) {
+                    Toast.makeText(context, "分享失败", Toast.LENGTH_SHORT).show()
+                }
+            },
+            dismissText = "关闭"
+        )
+    }
+
     if (showAbout) {
         PupuDialog(
             onDismissRequest = { showAbout = false },
@@ -524,6 +668,41 @@ fun ProfileScreen(state: AppState) {
             confirmText = "知道啦"
         )
     }
+}
+
+/** 通知权限被永久拒绝时，提醒面板里的自救入口（v4.0.0） */
+@Composable
+private fun NotifBlockedHint(blocked: Boolean) {
+    if (!blocked) return
+    val palette = LocalAppPalette.current
+    val context = LocalContext.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(androidx.compose.ui.graphics.Color(0x1AD06A5A))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                try {
+                    context.startActivity(
+                        android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                            .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    )
+                } catch (_: Exception) {
+                }
+            }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            "系统通知权限未开启，到点不会响",
+            fontSize = 12.sp, color = Color(0xFFD06A5A), modifier = Modifier.weight(1f)
+        )
+        Text("去设置 ›", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFD06A5A))
+    }
+    Spacer(Modifier.height(6.dp))
 }
 
 @Composable
@@ -837,11 +1016,11 @@ private fun TimeDialog(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Stepper("时", hour, 0, 23) { hour = it }
+                    PupuStepper("时", hour, 0, 23) { hour = it }
                     Spacer(Modifier.width(16.dp))
                     Text(":", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = palette.textSub)
                     Spacer(Modifier.width(16.dp))
-                    Stepper("分", minute, 0, 59) { minute = it }
+                    PupuStepper("分", minute, 0, 59) { minute = it }
                 }
                 Spacer(Modifier.height(16.dp))
                 Text("快捷选择", fontSize = 11.sp, color = palette.textSub)
@@ -882,72 +1061,4 @@ private fun TimeDialog(
     }
 }
 
-/** 数字步进器：上/下圆钮 + 数值胶囊 */
-@Composable
-private fun Stepper(
-    label: String,
-    value: Int,
-    min: Int,
-    max: Int,
-    onChange: (Int) -> Unit
-) {
-    val palette = LocalAppPalette.current
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, fontSize = 11.sp, color = palette.textSub)
-        Spacer(Modifier.height(6.dp))
-        StepCircle(up = true, enabled = value < max) { onChange((value + 1).coerceAtMost(max)) }
-        Spacer(Modifier.height(6.dp))
-        Box(
-            Modifier
-                .clip(RoundedCornerShape(16.dp))
-                .background(palette.primarySoft)
-                .padding(horizontal = 18.dp, vertical = 8.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                "%02d".format(value),
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Bold,
-                color = palette.primaryDeep
-            )
-        }
-        Spacer(Modifier.height(6.dp))
-        StepCircle(up = false, enabled = value > min) { onChange((value - 1).coerceAtLeast(min)) }
-    }
-}
-
-@Composable
-private fun StepCircle(up: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    val palette = LocalAppPalette.current
-    val haptic = LocalHapticFeedback.current
-    Box(
-        Modifier
-            .size(36.dp)
-            .clip(CircleShape)
-            .background(palette.cardAlt.copy(alpha = if (enabled) 1f else 0.45f))
-            .clickable(enabled = enabled) {
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onClick()
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(Modifier.size(14.dp)) {
-            val c = if (enabled) palette.textMain else palette.textSub.copy(alpha = 0.4f)
-            val p = Path().apply {
-                if (up) {
-                    moveTo(size.width * 0.25f, size.height * 0.62f)
-                    lineTo(size.width * 0.5f, size.height * 0.32f)
-                    lineTo(size.width * 0.75f, size.height * 0.62f)
-                } else {
-                    moveTo(size.width * 0.25f, size.height * 0.38f)
-                    lineTo(size.width * 0.5f, size.height * 0.68f)
-                    lineTo(size.width * 0.75f, size.height * 0.38f)
-                }
-            }
-            drawPath(
-                p, c,
-                style = Stroke(size.width * 0.2f, cap = StrokeCap.Round)
-            )
-        }
-    }
-}
+// 步进器已抽到 components/PupuStepper（v4.0.0，含长按连发），此处复用

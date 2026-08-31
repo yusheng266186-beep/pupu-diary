@@ -95,7 +95,8 @@ fun BottomBar(current: Tab, onSelect: (Tab) -> Unit) {
                         Box(Modifier.graphicsLayer { scaleX = scale; scaleY = scale }) {
                             NavIcon(tab, selected, palette)
                         }
-                        Spacer(Modifier.width(3.dp))
+                        // v4.0.0 修复：Column 中应用 height，此前误用 width 导致图标与文字零间距
+                        Spacer(Modifier.height(3.dp))
                         Text(
                             tab.label,
                             fontSize = 10.sp,

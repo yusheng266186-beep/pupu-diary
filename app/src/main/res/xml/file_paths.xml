@@ -4,4 +4,6 @@
     <external-files-path name="documents" path="Documents/" />
     <!-- Backup.export 最终兜底：filesDir -->
     <files-path name="files" path="." />
+    <!-- v4.0.0：诊断日志分享用的 cacheDir -->
+    <cache-path name="cache" path="." />
 </paths>

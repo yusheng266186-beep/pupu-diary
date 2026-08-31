@@ -16,16 +16,27 @@ data class PoopRecord(
     val incomplete: Boolean = false     // 没排干净的感觉
 )
 
-/** 颜色日记：与「便便晴天」同源的临床色板 */
+/** 颜色日记：与「便便晴天」同源，v4.0.0 起补足临床最需警惕的黑色与陶土色 */
 object PoopColors {
-    val labels = listOf("深棕", "棕色", "黄褐", "浅黄", "红棕", "其他")
+    val labels = listOf("深棕", "棕色", "黄褐", "浅黄", "红棕", "其他", "黑色", "陶土色")
     val colors = listOf(
         Color(0xFF80523F), Color(0xFF9C6B44), Color(0xFFC18B4A),
-        Color(0xFFE4C678), Color(0xFFB86F5A), Color(0xFFD6BCA5)
+        Color(0xFFE4C678), Color(0xFFB86F5A), Color(0xFFD6BCA5),
+        Color(0xFF45403B), Color(0xFFE5DCC8)
     )
 
     fun label(type: Int) = labels.getOrElse(type) { "未记录颜色" }
     fun color(type: Int) = colors.getOrElse(type) { Color(0xFFBE8E60) }
+}
+
+/** 颜色 + 身体状态的附加摘要（仅出现时展示），统计页与时间线共用 */
+fun PoopRecord.extraInfo(): String {
+    val parts = mutableListOf<String>()
+    colorType?.let { parts.add(PoopColors.label(it)) }
+    if (abdominalPain) parts.add("腹痛")
+    if (straining) parts.add("费力")
+    if (incomplete) parts.add("未排净")
+    return parts.joinToString(" · ")
 }
 
 object Bristol {

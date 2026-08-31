@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -44,6 +45,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,6 +58,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
@@ -74,6 +79,7 @@ import com.pupu.diary.ui.components.PrimaryButton
 import com.pupu.diary.ui.components.PupuDialog
 import com.pupu.diary.ui.components.SectionTitle
 import com.pupu.diary.ui.components.SoftCard
+import com.pupu.diary.ui.components.DateTimeDialog
 import com.pupu.diary.ui.theme.LocalAppPalette
 import com.pupu.diary.util.formatFullCn
 import java.time.LocalDate
@@ -84,19 +90,23 @@ import kotlin.math.roundToInt
 fun RecordScreen(state: AppState, onDone: () -> Unit, edit: PoopRecord? = null) {
     val palette = LocalAppPalette.current
     val haptic = LocalHapticFeedback.current
-    var bristol by remember { mutableStateOf<Int?>(edit?.bristol) }
-    var mood by remember { mutableIntStateOf(edit?.mood ?: 1) }
-    var smooth by remember { mutableFloatStateOf(edit?.smoothness?.toFloat() ?: 70f) }
-    var note by remember { mutableStateOf(edit?.note ?: "") }
-    var duration by remember { mutableIntStateOf(edit?.durationMin ?: 0) }
-    var colorType by remember { mutableStateOf(edit?.colorType) }
-    var pain by remember { mutableStateOf(edit?.abdominalPain ?: false) }
-    var straining by remember { mutableStateOf(edit?.straining ?: false) }
-    var incomplete by remember { mutableStateOf(edit?.incomplete ?: false) }
-    var timeMs by remember { mutableLongStateOf(edit?.time ?: System.currentTimeMillis()) }
-    var useNow by remember { mutableStateOf(edit == null) }
-    var showTimePick by remember { mutableStateOf(false) }
-    var moreOpen by remember {
+    // v4.0.0：草稿保活——表单改 rememberSaveable，切 Tab / 进程重建不再丢半填内容
+    var bristolSel by rememberSaveable { mutableIntStateOf(edit?.bristol ?: 0) }
+    val bristol: Int? = bristolSel.takeIf { it > 0 }
+    var mood by rememberSaveable { mutableIntStateOf(edit?.mood ?: 1) }
+    var smooth by rememberSaveable { mutableFloatStateOf(edit?.smoothness?.toFloat() ?: 70f) }
+    var note by rememberSaveable { mutableStateOf(edit?.note ?: "") }
+    var duration by rememberSaveable { mutableIntStateOf(edit?.durationMin ?: 0) }
+    var colorSel by rememberSaveable { mutableIntStateOf((edit?.colorType ?: -1) + 1) }
+    val colorType: Int? = (colorSel - 1).takeIf { it >= 0 }
+    var pain by rememberSaveable { mutableStateOf(edit?.abdominalPain ?: false) }
+    var straining by rememberSaveable { mutableStateOf(edit?.straining ?: false) }
+    var incomplete by rememberSaveable { mutableStateOf(edit?.incomplete ?: false) }
+    var timeMs by rememberSaveable { mutableLongStateOf(edit?.time ?: System.currentTimeMillis()) }
+    var useNow by rememberSaveable { mutableStateOf(edit == null) }
+    var showTimePick by rememberSaveable { mutableStateOf(false) }
+    var showCustomPick by rememberSaveable { mutableStateOf(false) }
+    var moreOpen by rememberSaveable {
         mutableStateOf(
             edit != null && (
                 edit.note.isNotBlank() || edit.durationMin > 0 ||
@@ -123,7 +133,8 @@ fun RecordScreen(state: AppState, onDone: () -> Unit, edit: PoopRecord? = null) 
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    // v4.0.0：edge-to-edge 下 adjustResize 失效，键盘弹出时整页随 imePadding 抬升，保存按钮不再被挡
+    Box(Modifier.fillMaxSize().imePadding()) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -147,7 +158,7 @@ fun RecordScreen(state: AppState, onDone: () -> Unit, edit: PoopRecord? = null) 
                                     type = i + 1,
                                     selected = bristol == i + 1,
                                     modifier = Modifier.weight(1f),
-                                    onClick = { bristol = i + 1 }
+                                    onClick = { bristolSel = i + 1 }
                                 )
                                 if (i % 3 != 2) Spacer(Modifier.width(10.dp))
                             }
@@ -256,7 +267,7 @@ fun RecordScreen(state: AppState, onDone: () -> Unit, edit: PoopRecord? = null) 
                                 .fillMaxWidth()
                                 .horizontalScroll(rememberScrollState())
                         ) {
-                            listOf(1, 3, 5, 10, 15).forEachIndexed { idx, min ->
+                            listOf(1, 3, 5, 10, 15, 30).forEachIndexed { idx, min ->
                                 DurationChip(
                                     text = "$min 分钟",
                                     selected = duration == min,
@@ -282,18 +293,18 @@ fun RecordScreen(state: AppState, onDone: () -> Unit, edit: PoopRecord? = null) 
                             PoopColors.labels.indices.forEach { idx ->
                                 ColorDot(
                                     type = idx,
-                                    selected = colorType == idx,
+                                    selected = colorSel == idx + 1,
                                     modifier = if (idx == 0) Modifier else Modifier.padding(start = 10.dp),
                                     onClick = {
-                                        colorType = if (colorType == idx) null else idx
+                                        colorSel = if (colorSel == idx + 1) 0 else idx + 1
                                     }
                                 )
                             }
                             Spacer(Modifier.width(10.dp))
                             DurationChip(
                                 text = "不记录",
-                                selected = colorType == null,
-                                onClick = { colorType = null }
+                                selected = colorSel == 0,
+                                onClick = { colorSel = 0 }
                             )
                         }
                         // 身体状态（可选三项）
@@ -344,6 +355,10 @@ fun RecordScreen(state: AppState, onDone: () -> Unit, edit: PoopRecord? = null) 
                                 unfocusedTextColor = palette.textMain
                             )
                         )
+                        Row(Modifier.fillMaxWidth().padding(top = 2.dp, end = 4.dp)) {
+                            Spacer(Modifier.weight(1f))
+                            Text("${note.length}/50", fontSize = 10.sp, color = palette.textSub)
+                        }
                     }
                 }
                 Spacer(Modifier.height(16.dp))
@@ -460,10 +475,27 @@ fun RecordScreen(state: AppState, onDone: () -> Unit, edit: PoopRecord? = null) 
                         Spacer(Modifier.width(8.dp))
                         TimeChip("昨天 20:00") { timeMs = at(20, 0, 1); useNow = false; showTimePick = false }
                     }
+                    // v4.0.0：任意日期时间补记（此前只有 5 个固定时间点）
+                    Spacer(Modifier.height(8.dp))
+                    Row {
+                        TimeChip("自定义时间…") { showCustomPick = true; showTimePick = false }
+                    }
                 }
             },
             confirmText = "关闭"
         )
+    }
+
+    if (showCustomPick) {
+        DateTimeDialog(
+            title = "自定义补记时间",
+            initialMs = if (useNow) System.currentTimeMillis() else timeMs,
+            onDismiss = { showCustomPick = false }
+        ) { ms ->
+            timeMs = ms
+            useNow = false
+            showCustomPick = false
+        }
     }
 }
 
@@ -626,6 +658,10 @@ private fun BristolCard(
                 scaleX = scale
                 scaleY = scale
             }
+            .semantics {
+                contentDescription = "$type ${Bristol.label(type)}"
+                this.selected = selected
+            }
             .clip(RoundedCornerShape(18.dp))
             .background(if (selected) palette.primarySoft else palette.card)
             .then(
@@ -656,7 +692,7 @@ private fun BristolCard(
     }
 }
 
-/** 顺滑度滑杆：渐变轨道 + 便便拇指（拖动时挤压变形，每跨一档轻触感） */
+/** 顺滑度滑杆：渐变轨道 + 便便拇指（v4.0.0：拇指中心 1:1 跟手，拖动中零滞后） */
 @Composable
 private fun SmoothSlider(value: Float, onChange: (Float) -> Unit) {
     val palette = LocalAppPalette.current
@@ -688,11 +724,20 @@ private fun SmoothSlider(value: Float, onChange: (Float) -> Unit) {
     val targetX = with(density) {
         ((widthPx - thumbSize.toPx()).coerceAtLeast(0f) * frac).toDp()
     }
+    // v4.0.0 跟手性：拖动时拇指直接贴手（近零滞后），松手/外部赋值才走弹性动画
     val thumbX by animateDpAsState(
         targetValue = targetX,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 500f),
+        animationSpec = if (dragging)
+            spring(dampingRatio = 1f, stiffness = 6000f)
+        else spring(dampingRatio = 0.7f, stiffness = 500f),
         label = "tx"
     )
+    // 与渲染同一坐标反函数：触点 x ↔ 拇指中心行程，两端不再偏差半个拇指
+    fun xToFrac(x: Float): Float {
+        val travel = widthPx - with(density) { thumbSize.toPx() }
+        return if (travel <= 0f) 0f
+        else ((x - with(density) { thumbSize.toPx() } / 2f) / travel).coerceIn(0f, 1f)
+    }
 
     Box(
         Modifier
@@ -701,7 +746,7 @@ private fun SmoothSlider(value: Float, onChange: (Float) -> Unit) {
             .onSizeChanged { widthPx = it.width.toFloat() }
             .pointerInput(Unit) {
                 detectTapGestures { off ->
-                    emit((off.x / widthPx).coerceIn(0f, 1f) * 100f)
+                    emit(xToFrac(off.x) * 100f)
                 }
             }
             .pointerInput(Unit) {
@@ -711,7 +756,7 @@ private fun SmoothSlider(value: Float, onChange: (Float) -> Unit) {
                     onDragCancel = { dragging = false }
                 ) { change, _ ->
                     change.consume()
-                    emit((change.position.x / widthPx).coerceIn(0f, 1f) * 100f)
+                    emit(xToFrac(change.position.x) * 100f)
                 }
             }
     ) {
@@ -739,7 +784,7 @@ private fun SmoothSlider(value: Float, onChange: (Float) -> Unit) {
                     scaleY = squishY
                 }
         ) {
-            PoopCharacter(size = thumbSize, breathing = false)
+            PoopCharacter(size = thumbSize, breathing = false, blinking = false)
         }
     }
 }

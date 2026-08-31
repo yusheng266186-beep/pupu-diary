@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v4.0.0：桌面长按图标快捷方式——一步直达记录页（走 MainActivity 的 nav extra 链路） -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="pupu_record"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_record">
+        <intent
+            android:action="android.intent.action.MAIN"
+            android:targetPackage="com.pupu.diary"
+            android:targetClass="com.pupu.diary.MainActivity">
+            <extra
+                android:name="nav"
+                android:value="record" />
+        </intent>
+    </shortcut>
+</shortcuts>

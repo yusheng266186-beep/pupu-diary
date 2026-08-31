@@ -36,9 +36,11 @@ fun BarChart(
     val palette = LocalAppPalette.current
     val textMeasurer = rememberTextMeasurer()
     val anim = remember { Animatable(0f) }
-    LaunchedEffect(values) {
+    val reduceMotion = com.pupu.diary.ui.theme.LocalReduceMotion.current
+    LaunchedEffect(values, reduceMotion) {
         anim.snapTo(0f)
-        anim.animateTo(1f, tween(800, easing = FastOutSlowInEasing))
+        if (reduceMotion) anim.snapTo(1f)
+        else anim.animateTo(1f, tween(800, easing = FastOutSlowInEasing))
     }
     Canvas(modifier.fillMaxWidth().height(190.dp)) {
         val n = values.size
@@ -112,9 +114,11 @@ fun DonutChart(
     modifier: Modifier = Modifier
 ) {
     val anim = remember { Animatable(0f) }
-    LaunchedEffect(segments) {
+    val reduceMotion = com.pupu.diary.ui.theme.LocalReduceMotion.current
+    LaunchedEffect(segments, reduceMotion) {
         anim.snapTo(0f)
-        anim.animateTo(1f, tween(900, easing = FastOutSlowInEasing))
+        if (reduceMotion) anim.snapTo(1f)
+        else anim.animateTo(1f, tween(900, easing = FastOutSlowInEasing))
     }
     Canvas(modifier.size(150.dp)) {
         val total = segments.sumOf { it.second.toDouble() }.toFloat().coerceAtLeast(1f)

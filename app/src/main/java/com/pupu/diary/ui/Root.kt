@@ -1,5 +1,8 @@
 package com.pupu.diary.ui
 
+import android.app.Activity
+import android.provider.Settings
+import android.view.WindowManager
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -11,10 +14,12 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -28,6 +33,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -41,6 +47,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,6 +57,7 @@ import com.pupu.diary.ui.components.BottomBar
 import com.pupu.diary.ui.components.PoopCharacter
 import com.pupu.diary.ui.components.Tab
 import com.pupu.diary.ui.components.UndoBar
+import com.pupu.diary.ui.screens.AllRecordsScreen
 import com.pupu.diary.ui.screens.HomeScreen
 import com.pupu.diary.ui.screens.ProfileScreen
 import com.pupu.diary.ui.screens.RecordScreen
@@ -57,6 +66,7 @@ import com.pupu.diary.ui.screens.TipsScreen
 import com.pupu.diary.ui.theme.AnimatedAppPalette
 import com.pupu.diary.ui.theme.DARK_PALETTES
 import com.pupu.diary.ui.theme.LocalAppPalette
+import com.pupu.diary.ui.theme.LocalReduceMotion
 import com.pupu.diary.ui.theme.PALETTES
 import com.pupu.diary.ui.theme.toColorScheme
 import kotlinx.coroutines.delay
@@ -64,6 +74,15 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun AppRoot(state: AppState, navTarget: androidx.compose.runtime.MutableState<String?>) {
+    val context = LocalContext.current
+    // 系统「移除动画」检测（Settings.Global "animator_duration_scale" == 0）
+    val reduceMotion = remember {
+        try {
+            Settings.Global.getFloat(context.contentResolver, "animator_duration_scale", 1f) == 0f
+        } catch (_: Exception) {
+            false
+        }
+    }
     // 夜间模式：0 跟随系统 / 1 常开 / 2 常关；切换走 AnimatedAppPalette 的 450ms 全色过渡
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
     val isDark = when (state.darkMode) {
@@ -71,13 +90,36 @@ fun AppRoot(state: AppState, navTarget: androidx.compose.runtime.MutableState<St
         2 -> false
         else -> systemDark
     }
+    val view = LocalView.current
     val palette = AnimatedAppPalette(
-        if (isDark) DARK_PALETTES[state.themeIndex.coerceIn(DARK_PALETTES.indices)] 
+        if (isDark) DARK_PALETTES[state.themeIndex.coerceIn(DARK_PALETTES.indices)]
         else PALETTES[state.themeIndex.coerceIn(PALETTES.indices)]
     )
+
+    // v4.0.0 修复：隐私模式即时生效（开关拨动当刻就挂 FLAG_SECURE，不再等下一次 onResume）
+    DisposableEffect(state.privacyMode) {
+        val window = (view.context as? Activity)?.window
+        if (state.privacyMode) window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        else window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        onDispose { }
+    }
+    // v4.0.0 修复：系统栏图标明暗跟随 App 自己的深色态（enableEdgeToEdge 默认只跟系统）
+    DisposableEffect(isDark) {
+        val window = (view.context as? Activity)?.window
+        if (window != null) {
+            val controller = androidx.core.view.WindowCompat.getInsetsController(window, view)
+            controller.isAppearanceLightStatusBars = !isDark
+            controller.isAppearanceLightNavigationBars = !isDark
+        }
+        onDispose { }
+    }
+
     androidx.compose.material3.MaterialTheme(colorScheme = palette.toColorScheme()) {
-        CompositionLocalProvider(LocalAppPalette provides palette) {
-            var showIntro by rememberSaveable { mutableStateOf(true) }
+        CompositionLocalProvider(
+            LocalAppPalette provides palette,
+            LocalReduceMotion provides reduceMotion
+        ) {
+            var showIntro by rememberSaveable { mutableStateOf(!reduceMotion) }
             AnimatedContent(
                 targetState = showIntro,
                 transitionSpec = {
@@ -100,12 +142,18 @@ private fun MainScaffold(state: AppState, navTarget: androidx.compose.runtime.Mu
     val palette = LocalAppPalette.current
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
     var showTips by rememberSaveable { mutableStateOf(false) }
+    var showAll by rememberSaveable { mutableStateOf(false) }
     var editing by remember { mutableStateOf<PoopRecord?>(null) }
 
-    // 系统返回键/手势逐级返回：编辑页 → 贴士页 → 非首页 Tab → （再按才退出）
+    // 系统返回键/手势逐级返回：编辑页 → 时间线 → 贴士页 → 非首页 Tab → （再按才退出）
     androidx.activity.compose.BackHandler(enabled = editing != null) { editing = null }
-    androidx.activity.compose.BackHandler(enabled = showTips) { showTips = false }
-    androidx.activity.compose.BackHandler(enabled = !showTips && editing == null && tab != Tab.HOME) {
+    androidx.activity.compose.BackHandler(enabled = editing == null && showAll) { showAll = false }
+    androidx.activity.compose.BackHandler(enabled = editing == null && !showAll && showTips) {
+        showTips = false
+    }
+    androidx.activity.compose.BackHandler(
+        enabled = editing == null && !showTips && !showAll && tab != Tab.HOME
+    ) {
         tab = Tab.HOME
     }
 
@@ -114,10 +162,12 @@ private fun MainScaffold(state: AppState, navTarget: androidx.compose.runtime.Mu
         when (navTarget.value) {
             "record" -> {
                 showTips = false
+                showAll = false
                 tab = Tab.RECORD
             }
             "home" -> {
                 showTips = false
+                showAll = false
                 tab = Tab.HOME
             }
         }
@@ -168,21 +218,61 @@ private fun MainScaffold(state: AppState, navTarget: androidx.compose.runtime.Mu
                                     onGoTips = { showTips = true }
                                 )
                                 Tab.RECORD -> RecordScreen(state, onDone = { tab = Tab.HOME })
-                                Tab.STATS -> StatsScreen(state, onEdit = { editing = it })
+                                Tab.STATS -> StatsScreen(
+                                    state,
+                                    onEdit = { editing = it },
+                                    onShowAll = { showAll = true }
+                                )
                                 Tab.MINE -> ProfileScreen(state)
                             }
                         }
                     }
                 }
             }
-            editing?.let { e ->
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(palette.bg)
-                        .statusBarsPadding()
-                ) {
-                    RecordScreen(state, edit = e, onDone = { editing = null })
+            // 全部记录时间线层（v4.0.0）
+            AnimatedContent(
+                targetState = showAll,
+                transitionSpec = {
+                    (slideInHorizontally(tween(280)) { it / 6 } + fadeIn(tween(240))) togetherWith
+                        (slideOutHorizontally(tween(220)) { it / 6 } + fadeOut(tween(180)))
+                },
+                label = "allLayer"
+            ) { all ->
+                if (all) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(palette.bg)
+                            .statusBarsPadding()
+                    ) {
+                        AllRecordsScreen(
+                            state,
+                            onBack = { showAll = false },
+                            onEdit = { editing = it }
+                        )
+                    }
+                }
+            }
+            // 编辑层（v4.0.0：补齐与贴士层一致的入场过渡，不再硬切）
+            AnimatedContent(
+                targetState = editing,
+                transitionSpec = {
+                    (fadeIn(tween(220)) + scaleIn(
+                        initialScale = 0.97f,
+                        animationSpec = spring(dampingRatio = 0.8f, stiffness = 380f)
+                    )) togetherWith fadeOut(tween(160))
+                },
+                label = "editLayer"
+            ) { e ->
+                if (e != null) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(palette.bg)
+                            .statusBarsPadding()
+                    ) {
+                        RecordScreen(state, edit = e, onDone = { editing = null })
+                    }
                 }
             }
             // 删除撤销条（全 App 级，悬浮于内容区底部）
@@ -200,15 +290,17 @@ private fun MainScaffold(state: AppState, navTarget: androidx.compose.runtime.Mu
     }
 }
 
-/** 开屏：角色落下 + 标题浮现 + 星星闪烁（点击任意处可跳过） */
+/** 开屏：角色落下 + 标题浮现 + 星星闪烁（点击任意处可跳过；系统移除动画时直接跳过） */
 @Composable
 private fun IntroScreen(onDone: () -> Unit) {
     val palette = LocalAppPalette.current
-    val drop = remember { Animatable(-700f) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val drop = remember { Animatable(0f) }
     val titleAlpha = remember { Animatable(0f) }
     val titleOffset = remember { Animatable(36f) }
 
     LaunchedEffect(Unit) {
+        drop.snapTo(with(density) { -720.dp.toPx() })
         launch { drop.animateTo(0f, spring(dampingRatio = 0.5f, stiffness = 170f)) }
         launch {
             delay(420)

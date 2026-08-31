@@ -28,22 +28,25 @@ pupu-diary（GitHub 单仓库）
 
 ```
 app/src/main/java/com/pupu/diary/
+├── PupuApp.kt             # Application：进程级持有 AppState 单例（v4.0.0）
 ├── data/
-│   ├── PoopRecord.kt        # 记录模型（time/bristol/mood/smoothness/note/durationMin）
-│   ├── RecordDb.kt          # SQLiteOpenHelper，DB v3，含 v1→v3 增量迁移
-│   └── Prefs.kt             # SharedPreferences 封装（主题/提醒/打卡/隐私模式）
+│   ├── PoopRecord.kt      # 记录模型（含颜色/腹痛/费力/未排净）+ Bristol 分型 + PoopColors 八色 + extraInfo 摘要
+│   ├── RecordDb.kt        # SQLiteOpenHelper，DB v5（records + checkins），v1→v5 增量迁移
+│   └── Prefs.kt           # SharedPreferences 封装（主题/夜间/隐私/双提醒/打卡/昵称/userId/自动备份）
 ├── ui/
-│   ├── AppState.kt          # 应用级状态单例：全量记录 + 偏好 + 打卡，暴露 mutableStateList
-│   ├── Root.kt              # 自研页面导航（sealed page + BackHandler 逐级返回）
-│   ├── screens/             # Home 492 / Record 614 / Stats 1030 / Tips 464 / Profile 845（行）
-│   ├── components/          # 便便角色（呼吸/眨眼）、Bristol 图标、心情脸、图表、糖果按钮、撒花
-│   └── theme/               # 五套可切换色板 → MaterialTheme 映射（450ms 全色过渡）
+│   ├── AppState.kt        # 应用级状态单例：内存记录列表 + 全部偏好 + 写操作（DB 在 IO、列表变更回主线程）
+│   ├── Root.kt            # AppRoot（夜间解析/色板过渡/隐私即时/状态栏同步/减动效）+ MainScaffold（Tab/贴士/时间线/编辑四层）
+│   ├── screens/           # Home / Record / Stats / Tips / Profile / AllRecords（全部记录时间线，v4.0.0）
+│   ├── components/        # 便便角色（呼吸/眨眼/可关眨眼）、Bristol 图标、心情脸、图表、糖果按钮、撒花、PupuStepper/DateTimeDialog
+│   └── theme/             # 5×明暗色板 → MaterialTheme 映射（450ms 全色过渡）+ LocalReduceMotion
 └── util/
-    ├── Backup.kt            # JSON 导出/导入（去重合并）+ 每周自动备份
-    ├── Reminders.kt         # AlarmManager 每日提醒 + 触发后自动续期
-    ├── BootReceiver.kt      # 开机广播重挂闹钟
-    ├── CrashLog.kt          # 本地崩溃日志
-    └── Dates.kt             # 日期工具（有单元测试）
+    ├── Backup.kt          # JSON 备份（解析容错）+ 自动备份与 isBackupDue 纯函数 + 备份文件列举
+    ├── Csv.kt             # 医生查看版 CSV（十列 + #元信息行，UTF-8 BOM）
+    ├── Insights.kt        # 纯逻辑统计层（buildBars/buildInsights/streakDays，含打卡关联洞察，有单测）
+    ├── Reminders.kt       # AlarmManager 每日提醒（触发后自续期）
+    ├── BootReceiver.kt    # 开机 / 升级后重挂闹钟
+    ├── CrashLog.kt        # 环形崩溃日志 + 应用内 tail 查看
+    └── Dates.kt           # 日期工具（纯 JVM，有单测）
 ```
 
 ### 2.2 数据流
@@ -62,7 +65,7 @@ UI 层直接读取重组 ◀─────────────────�
 | 零第三方依赖（仅 Compose BOM + 基础 androidx） | 构建快、包体小、升级风险低 | 没有响应式数据层，统计在内存计算 |
 | 启动全量加载记录进内存 | 实现简单，任意统计一次算完 | 数据量增长后启动变慢（个人量级数千条内无感） |
 | 自研导航 + AppState 单例 | 页面动效完全可控、无 ViewModel 样板 | 无生命周期感知，依赖进程内存活 |
-| 裸 SQLiteOpenHelper + 手写迁移 | 迁移逻辑直观可审计（v1→v3） | 无编译期 SQL 校验 |
+| 裸 SQLiteOpenHelper + 手写迁移 | 迁移逻辑直观可审计（v1→v5） | 无编译期 SQL 校验 |
 
 ---
 
@@ -121,7 +124,7 @@ Room(shunshun.db) ──Flow<List<PoopRecord>>──▶ ViewModel / collectAsSta
 | 导航 | 自研（sealed page + BackHandler） | Navigation Compose |
 | 依赖注入 | 无（手动单例） | 无（手动单例） |
 | UI 主题 | 五套可切换色板 | 单套鼠尾草色板 |
-| 测试 | JUnit（Dates / Bristol） | 无 |
+| 测试 | JUnit 26 用例（Dates / Bristol / PoopColors / BackupDue / Csv / Insights） | 无 |
 | 包体（release，R8） | ~1.2MB | ~1.36MB |
 | 构建链 | Gradle 8.9 + AGP 8.4.2 | Gradle 8.9 + AGP 8.7.3 |
 
@@ -138,6 +141,7 @@ Room(shunshun.db) ──Flow<List<PoopRecord>>──▶ ViewModel / collectAsSta
 ## 6. 演进路线（建议）
 
 1. ~~**字段反哺**~~（✅ 已完成，v2.2.0）：腹痛 / 费力 / 未排净 / 颜色日记已并入噗噗日记 DB v4（手写 ALTER TABLE 迁移 + 备份格式 v4 双向兼容），新字段收进记录页折叠区以保持快流程，统计环比与腹痛预警洞察同步上线。
-2. **数据层演进评估**：噗噗日记若数据量突破万条，启动全量加载将成为可感知瓶颈，可参考 `shunshun` 分支改造为 Room + 区间查询。
-3. **测试补齐**：便便晴天补数据层与备份格式测试；两分支各自的 workflow 中已具备跑测试的位置。
+2. **数据层演进评估**：噗噗日记若数据量突破万条，启动全量加载将成为可感知瓶颈，可参考 `shunshun` 分支改造为 Room + 区间查询。（v4.0.0 已将打卡数据入 DB v5 并把统计/洞察抽为纯函数层，主体记录仍走全量内存——个人量级无压力）
+3. **测试补齐**：便便晴天补数据层与备份格式测试；噗噗日记侧 v4.0.0 已把备份到期判断、CSV、洞察构建抽为纯函数并新增测试（12→26 用例）。
 4. **shunshun 分支 CI 触发名**：其 workflow 沿袭原仓库的 `master` 分支名配置，在本仓库的 `shunshun` 分支上不会自动触发，如需启用可将触发分支改为 `shunshun`（属对该分支的改动，暂按"迁移不动分文"原则保留原样）。
+5. **平台升级**：本机 Android SDK 仅有 android-34 平台，AGP/targetSdk 升级（35+）需在有网络/平台包的环境执行，暂未纳入 v4.0.0。

@@ -38,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -70,12 +71,23 @@ import com.pupu.diary.ui.theme.LocalAppPalette
 import com.pupu.diary.util.toStartMs
 import java.time.LocalDate
 import kotlinx.coroutines.delay
+import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.sin
 
 @Composable
 fun HomeScreen(state: AppState, onGoTab: (Tab) -> Unit, onGoTips: () -> Unit) {
     val palette = LocalAppPalette.current
-    val todayStart = remember { LocalDate.now().toStartMs() }
+    // v4.0.0：30 秒一次的"今天"时钟，跨过午夜后计数自动归零、问候语按时段更新
+    var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            nowMs = System.currentTimeMillis()
+            delay(30_000)
+        }
+    }
+    val todayStart = java.time.Instant.ofEpochMilli(nowMs)
+        .atZone(java.time.ZoneId.systemDefault()).toLocalDate().toStartMs()
     val todayCount = state.records.count { it.time >= todayStart }
     var heartTrigger by remember { mutableIntStateOf(0) }
     val haptic = LocalHapticFeedback.current
@@ -87,8 +99,11 @@ fun HomeScreen(state: AppState, onGoTab: (Tab) -> Unit, onGoTips: () -> Unit) {
     }
 
     // 时段问候（设置了昵称则带上称呼）
-    val greeting = remember(state.userName) {
-        val base = when (java.time.LocalTime.now().hour) {
+    val greeting = remember(nowMs / 1800000L, state.userName) {
+        val base = when (
+            java.time.Instant.ofEpochMilli(nowMs)
+                .atZone(java.time.ZoneId.systemDefault()).hour
+        ) {
             in 5..11 -> "早上好呀"
             in 12..13 -> "中午好呀"
             in 14..18 -> "下午好呀"
@@ -280,34 +295,22 @@ private fun LeafIcon(tint: Color) {
 @Composable
 private fun HomeScene(onCharacterTap: () -> Unit) {
     val palette = LocalAppPalette.current
-    val sunT = rememberInfiniteTransition(label = "sun")
-    val sunAngle by sunT.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(30000, easing = LinearEasing)),
-        label = "sunA"
-    )
-    val cloudT = rememberInfiniteTransition(label = "cloud")
-    val cloudX by cloudT.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(9000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "cloudX"
-    )
-    val grassT = rememberInfiniteTransition(label = "grass")
-    val grass by grassT.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "grassA"
-    )
-    val sparkT = rememberInfiniteTransition(label = "spark")
-    val spark by sparkT.animateFloat(
-        initialValue = 0.1f,
-        targetValue = 0.85f,
-        animationSpec = infiniteRepeatable(tween(1700, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "sparkA"
-    )
+    // v4.0.0 性能：场景慢速元素（太阳旋转/云漂移/草摇/微光）肉眼不需要 60fps，
+    // 统一由约 12fps 的 tick 驱动，全屏 Canvas 重绘开销降约 5 倍；角色呼吸/眨眼仍是独立 Canvas
+    val reduceMotion = com.pupu.diary.ui.theme.LocalReduceMotion.current
+    var frame by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        if (reduceMotion) return@LaunchedEffect
+        while (true) {
+            delay(80L)
+            frame++
+        }
+    }
+    val ms = frame * 80L
+    val sunAngle = (ms % 30000L) / 30000f * 360f
+    val cloudX = 0.5f + 0.5f * sin(ms / 18000.0 * 2.0 * PI).toFloat()
+    val grass = 0.5f + 0.5f * sin(ms / 4800.0 * 2.0 * PI).toFloat()
+    val spark = 0.1f + 0.75f * abs(sin(ms / 1700.0 * PI)).toFloat()
 
     Box(Modifier.fillMaxSize()) {
         Canvas(Modifier.matchParentSize()) {

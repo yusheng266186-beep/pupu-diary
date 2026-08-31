@@ -13,22 +13,36 @@ import java.util.Locale
  */
 object CrashLog {
 
-    private const val MAX_BYTES = 60_000
+    private const val MAX_CHARS = 60_000
+    private const val FILE = "crash_log.txt"
+
+    private fun logFile(context: Context) =
+        File(File(context.filesDir, "logs").apply { mkdirs() }, FILE)
+
+    /** 读取日志尾部（供应用内「诊断日志」查看），不存在时返回空串 */
+    fun tail(context: Context, maxChars: Int = 4000): String {
+        return try {
+            val text = logFile(context).takeIf { it.exists() }?.readText() ?: ""
+            if (text.length <= maxChars) text else "…（更早内容已省略）\n" + text.takeLast(maxChars)
+        } catch (_: Exception) {
+            ""
+        }
+    }
 
     fun install(context: Context) {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
             try {
-                val dir = File(context.filesDir, "logs").apply { mkdirs() }
-                val f = File(dir, "crash_log.txt")
+                val f = logFile(context)
                 val stamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date())
                 val entry = buildString {
                     appendLine("==== $stamp (thread: ${t.name}) ====")
                     appendLine(Log.getStackTraceString(e))
                 }
                 synchronized(this) {
-                    val old = if (f.length() in 1..MAX_BYTES) f.readText() else ""
-                    f.writeText(entry + old)
+                    // 真正的环形保留：新内容在头部，超长时截尾部，而不是整份丢弃
+                    val merged = entry + f.readText()
+                    f.writeText(merged.take(MAX_CHARS))
                 }
             } catch (_: Exception) {
             }

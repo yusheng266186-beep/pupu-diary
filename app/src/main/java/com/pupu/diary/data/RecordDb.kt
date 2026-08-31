@@ -24,6 +24,13 @@ class RecordDb(context: Context) :
                 "incomplete INTEGER NOT NULL DEFAULT 0)"
         )
         db.execSQL("CREATE INDEX idx_records_time ON records(time)")
+        db.execSQL(
+            "CREATE TABLE checkins(" +
+                "day TEXT PRIMARY KEY," +
+                "water INTEGER NOT NULL DEFAULT 0," +
+                "exercise INTEGER NOT NULL DEFAULT 0," +
+                "fiber INTEGER NOT NULL DEFAULT 0)"
+        )
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -40,6 +47,34 @@ class RecordDb(context: Context) :
             db.execSQL("ALTER TABLE records ADD COLUMN straining INTEGER NOT NULL DEFAULT 0")
             db.execSQL("ALTER TABLE records ADD COLUMN incomplete INTEGER NOT NULL DEFAULT 0")
         }
+        if (oldVersion < 5) {
+            // v4.0.0：每日打卡入表（水/运动/纤维），让打卡数据可积累、可做关联洞察
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS checkins(" +
+                    "day TEXT PRIMARY KEY," +
+                    "water INTEGER NOT NULL DEFAULT 0," +
+                    "exercise INTEGER NOT NULL DEFAULT 0," +
+                    "fiber INTEGER NOT NULL DEFAULT 0)"
+            )
+        }
+    }
+
+    /** 打卡 upsert（INSERT OR REPLACE 兼容 minSdk 26，不用 ON CONFLICT） */
+    fun upsertCheckin(day: String, water: Int, exercise: Int, fiber: Int) {
+        writableDatabase.execSQL(
+            "INSERT OR REPLACE INTO checkins(day, water, exercise, fiber) VALUES(?,?,?,?)",
+            arrayOf(day, water, exercise, fiber)
+        )
+    }
+
+    fun loadCheckins(): Map<String, IntArray> {
+        val out = HashMap<String, IntArray>()
+        readableDatabase.rawQuery("SELECT day, water, exercise, fiber FROM checkins", null).use { c ->
+            while (c.moveToNext()) {
+                out[c.getString(0)] = intArrayOf(c.getInt(1), c.getInt(2), c.getInt(3))
+            }
+        }
+        return out
     }
 
     fun all(): List<PoopRecord> {
@@ -108,6 +143,6 @@ class RecordDb(context: Context) :
     }
 
     companion object {
-        private const val DB_VERSION = 4
+        private const val DB_VERSION = 5
     }
 }

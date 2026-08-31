@@ -12,9 +12,11 @@ import java.util.Locale
 /** 医生查看版 CSV 导出：一行一次记录，含全部临床字段（时间/形状/颜色/心情/顺滑度/时长/状态/备注） */
 object Csv {
 
-    fun build(records: List<PoopRecord>): ByteArray {
+    fun build(records: List<PoopRecord>, meta: List<String> = emptyList()): ByteArray {
         val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.CHINA)
         val out = StringBuilder()
+        // 元信息行：版本 / 导出时间 / 条数 / 范围，方便医生确认数据出处
+        meta.forEach { out.append(escape("#$it")).append("\r\n") }
         out.append("时间,便形状(Bristol),颜色,心情,顺滑度(%),时长(分钟),腹痛,费力,未排净,备注\r\n")
         records.sortedByDescending { it.time }.forEach { r ->
             out.append(escape(sdf.format(Date(r.time)))).append(',')

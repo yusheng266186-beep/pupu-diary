@@ -1,11 +1,22 @@
 package com.pupu.diary.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.material3.TextButton
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -248,7 +259,7 @@ fun BackHeader(title: String, onBack: () -> Unit) {
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(44.dp)
                     .clip(CircleShape)
                     .background(palette.card)
                     .clickable(
@@ -298,34 +309,41 @@ fun PlusButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
         label = "plusScale"
     )
     Box(
+        // v4.0.0：视觉 34dp，触控热区扩到 44dp（无障碍标准）
         modifier = modifier
-            .size(34.dp)
+            .size(44.dp)
             .semantics { contentDescription = "打卡 +1" }
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(CircleShape)
-            .background(palette.primary)
             .clickable(interactionSource = interaction, indication = null) {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 onClick()
             },
         contentAlignment = Alignment.Center
     ) {
-        Canvas(Modifier.size(14.dp)) {
-            val w = size.width
-            val h = size.height
-            drawLine(
-                Color.White, Offset(w / 2f, h * 0.1f), Offset(w / 2f, h * 0.9f),
-                strokeWidth = w * 0.18f, cap = StrokeCap.Round
-            )
-            drawLine(
-                Color.White, Offset(w * 0.1f, h / 2f), Offset(w * 0.9f, h / 2f),
-                strokeWidth = w * 0.18f, cap = StrokeCap.Round
-            )
+        Box(
+            Modifier
+                .size(34.dp)
+                .graphicsLayer { scaleX = scale; scaleY = scale }
+                .clip(CircleShape)
+                .background(palette.primary),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(Modifier.size(14.dp)) {
+                val w = size.width
+                val h = size.height
+                drawLine(
+                    Color.White, Offset(w / 2f, h * 0.1f), Offset(w / 2f, h * 0.9f),
+                    strokeWidth = w * 0.18f, cap = StrokeCap.Round
+                )
+                drawLine(
+                    Color.White, Offset(w * 0.1f, h / 2f), Offset(w * 0.9f, h / 2f),
+                    strokeWidth = w * 0.18f, cap = StrokeCap.Round
+                )
+            }
         }
     }
 }
 
-/** 删除撤销条：底部浮层。弹簧入场、快速退出（慢进快出的不对称时机），5 秒后自动消失 */
+/** 删除撤销条：底部浮层。弹簧入场、快速退出（慢进快出的不对称时机），5 秒倒计时可视化 */
 @Composable
 fun UndoBar(
     visible: Boolean,
@@ -333,6 +351,14 @@ fun UndoBar(
     modifier: Modifier = Modifier
 ) {
     val palette = LocalAppPalette.current
+    // v4.0.0：底部细线随 5 秒窗口收缩，用户对"还来不来得及撤销"有视觉预期
+    val countdown = remember { Animatable(0f) }
+    LaunchedEffect(visible) {
+        if (visible) {
+            countdown.snapTo(0f)
+            countdown.animateTo(1f, tween(5000, easing = LinearEasing))
+        }
+    }
     AnimatedVisibility(
         visible = visible,
         enter = slideInVertically(
@@ -347,25 +373,189 @@ fun UndoBar(
             shadowElevation = 12.dp,
             color = palette.card
         ) {
-            Row(
-                Modifier.padding(start = 18.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("已删除一条记录", fontSize = 13.sp, color = palette.textSub)
-                Text(
-                    "撤销",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = palette.primaryDeep,
-                    modifier = Modifier
-                        .semantics { contentDescription = "撤销刚才的删除" }
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onUndo
-                        )
-                        .padding(horizontal = 14.dp, vertical = 10.dp)
+            Column {
+                Row(
+                    Modifier.padding(start = 18.dp, end = 6.dp, top = 5.dp, bottom = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("已删除一条记录", fontSize = 13.sp, color = palette.textSub)
+                    Text(
+                        "撤销",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = palette.primaryDeep,
+                        modifier = Modifier
+                            .semantics { contentDescription = "撤销刚才的删除" }
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = onUndo
+                            )
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                    )
+                }
+                Canvas(Modifier.fillMaxWidth().height(3.dp)) {
+                    drawLine(
+                        palette.primary.copy(alpha = 0.55f),
+                        Offset(0f, 1.5f),
+                        Offset(size.width * (1f - countdown.value), 1.5f),
+                        strokeWidth = 3f,
+                        cap = StrokeCap.Round
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 数字步进器（v4.0.0 从"我的"页抽出共享，支持点按与长按连发） */
+@Composable
+fun PupuStepper(
+    label: String,
+    value: Int,
+    min: Int,
+    max: Int,
+    onChange: (Int) -> Unit
+) {
+    val palette = LocalAppPalette.current
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, fontSize = 11.sp, color = palette.textSub)
+        Spacer(Modifier.height(6.dp))
+        StepCircle(up = true, enabled = value < max) { onChange((value + 1).coerceAtMost(max)) }
+        Spacer(Modifier.height(6.dp))
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(palette.primarySoft)
+                .padding(horizontal = 18.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                "%02d".format(value),
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Bold,
+                color = palette.primaryDeep
+            )
+        }
+        Spacer(Modifier.height(6.dp))
+        StepCircle(up = false, enabled = value > min) { onChange((value - 1).coerceAtLeast(min)) }
+    }
+}
+
+/** 步进圆钮：按下即响应一次，按住 400ms 后每 80ms 连发（v4.0.0 长按加速） */
+@Composable
+private fun StepCircle(up: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    val palette = LocalAppPalette.current
+    val haptic = LocalHapticFeedback.current
+    Box(
+        Modifier
+            .size(44.dp)
+            .pointerInput(enabled) {
+                detectTapGestures(
+                    onPress = { off ->
+                        if (!enabled) return@detectTapGestures
+                        val cx = size.width / 2f
+                        val cy = size.height / 2f
+                        val dx = off.x - cx
+                        val dy = off.y - cy
+                        if (dx * dx + dy * dy > cx * cx) return@detectTapGestures
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onClick()
+                        // 400ms 内松手则不连发
+                        val held = withTimeoutOrNull(400L) { tryAwaitRelease() } != true
+                        if (held) {
+                            while (true) {
+                                delay(80L)
+                                if (withTimeoutOrNull(80L) { tryAwaitRelease() } == true) break
+                                onClick()
+                            }
+                        }
+                    }
                 )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(palette.cardAlt.copy(alpha = if (enabled) 1f else 0.45f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(Modifier.size(14.dp)) {
+                val c = if (enabled) palette.textMain else palette.textSub.copy(alpha = 0.4f)
+                val p = Path().apply {
+                    if (up) {
+                        moveTo(size.width * 0.25f, size.height * 0.62f)
+                        lineTo(size.width * 0.5f, size.height * 0.32f)
+                        lineTo(size.width * 0.75f, size.height * 0.62f)
+                    } else {
+                        moveTo(size.width * 0.25f, size.height * 0.38f)
+                        lineTo(size.width * 0.5f, size.height * 0.68f)
+                        lineTo(size.width * 0.75f, size.height * 0.38f)
+                    }
+                }
+                drawPath(p, c, style = Stroke(size.width * 0.2f, cap = StrokeCap.Round))
+            }
+        }
+    }
+}
+
+/** 任意日期+时间选择（v4.0.0 补记升级：不再只有 5 个固定时间点） */
+@Composable
+fun DateTimeDialog(
+    title: String,
+    initialMs: Long,
+    onDismiss: () -> Unit,
+    onConfirm: (Long) -> Unit
+) {
+    val palette = LocalAppPalette.current
+    val zone = java.time.ZoneId.systemDefault()
+    val init = java.time.Instant.ofEpochMilli(initialMs).atZone(zone)
+    var year by remember { mutableIntStateOf(init.year) }
+    var month by remember { mutableIntStateOf(init.monthValue) }
+    var day by remember { mutableIntStateOf(init.dayOfMonth) }
+    var hour by remember { mutableIntStateOf(init.hour) }
+    var minute by remember { mutableIntStateOf(init.minute) }
+    val thisYear = java.time.LocalDate.now().year
+
+    fun clampedMs(): Long {
+        val y = year.coerceIn(2000, thisYear)
+        val m = month.coerceIn(1, 12)
+        val maxD = java.time.LocalDate.of(y, m, 1).lengthOfMonth()
+        val d = day.coerceIn(1, maxD)
+        return java.time.LocalDateTime.of(y, m, d, hour.coerceIn(0, 23), minute.coerceIn(0, 59))
+            .atZone(zone).toInstant().toEpochMilli()
+            .coerceAtMost(System.currentTimeMillis())
+    }
+
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = RoundedCornerShape(24.dp), color = palette.card) {
+            Column(Modifier.padding(22.dp)) {
+                Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = palette.textMain)
+                Spacer(Modifier.height(18.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    PupuStepper("年", (year - 2000).coerceIn(0, 99), 0, thisYear - 2000) { year = 2000 + it }
+                    Spacer(Modifier.width(8.dp))
+                    PupuStepper("月", month, 1, 12) { month = it }
+                    Spacer(Modifier.width(8.dp))
+                    PupuStepper("日", day, 1, 31) { day = it }
+                    Spacer(Modifier.width(14.dp))
+                    PupuStepper("时", hour, 0, 23) { hour = it }
+                    Text(":", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = palette.textSub)
+                    PupuStepper("分", minute, 0, 59) { minute = it }
+                }
+                Spacer(Modifier.height(14.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss) { Text("取消", color = palette.textSub) }
+                    TextButton(onClick = { onConfirm(clampedMs()) }) {
+                        Text("确定", fontWeight = FontWeight.SemiBold, color = palette.primary)
+                    }
+                }
             }
         }
     }

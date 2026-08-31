@@ -54,6 +54,7 @@ fun PoopCharacter(
     celebrate: Boolean = false,
     breathing: Boolean = true,
     idleHop: Boolean = false,
+    blinking: Boolean = true,
     onTap: (() -> Unit)? = null,
     palette: AppPalette = LocalAppPalette.current
 ) {
@@ -72,7 +73,9 @@ fun PoopCharacter(
         label = "wiggleV"
     )
     val eyeScale = remember { Animatable(1f) }
-    LaunchedEffect(Unit) {
+    // v4.0.0：眨眼循环可关——滑杆拇指/头像等静态场景不再全速重绘
+    LaunchedEffect(blinking) {
+        if (!blinking) return@LaunchedEffect
         while (true) {
             delay(2600L + Random.nextLong(1500L))
             eyeScale.animateTo(0.06f, tween(70))
