@@ -25,11 +25,15 @@ object Backup {
                     .put("smoothness", r.smoothness)
                     .put("note", r.note)
                     .put("duration", r.durationMin)
+                    .put("color", r.colorType ?: -1)
+                    .put("abdominalPain", r.abdominalPain)
+                    .put("straining", r.straining)
+                    .put("incomplete", r.incomplete)
             )
         }
         val json = JSONObject()
             .put("app", "pupu-diary")
-            .put("version", 3)
+            .put("version", 4)
             .put("records", arr)
         return json.toString(2).toByteArray(Charsets.UTF_8)
     }
@@ -84,13 +88,18 @@ fun export(context: Context, records: List<PoopRecord>): ExportResult {
                 val bristol = o.optInt("bristol", 0)
                 val time = o.optLong("time", 0L)
                 if (bristol in 1..7 && time > 0) {
+                    val color = o.optInt("color", -1)
                     PoopRecord(
                         time = time,
                         bristol = bristol,
                         mood = o.optInt("mood", 1).coerceIn(0, 4),
                         smoothness = o.optInt("smoothness", 50).coerceIn(0, 100),
                         note = o.optString("note", ""),
-                        durationMin = o.optInt("duration", 0).coerceIn(0, 120)
+                        durationMin = o.optInt("duration", 0).coerceIn(0, 120),
+                        colorType = if (color in 0..5) color else null,
+                        abdominalPain = o.optBoolean("abdominalPain", false),
+                        straining = o.optBoolean("straining", false),
+                        incomplete = o.optBoolean("incomplete", false)
                     )
                 } else {
                     null

@@ -9,7 +9,10 @@ import com.pupu.diary.data.Prefs
 class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+        // 开机或 App 升级后自动重挂提醒闹钟（v2.2.0 起补齐升级场景）
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED &&
+            intent.action != Intent.ACTION_MY_PACKAGE_REPLACED
+        ) return
         val prefs = Prefs(context)
         if (prefs.recordRemindOn) {
             Reminders.schedule(

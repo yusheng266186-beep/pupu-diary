@@ -41,6 +41,10 @@ class Prefs(context: Context) {
         get() = sp.getString("last_auto_backup", "") ?: ""
         set(v) = sp.edit().putString("last_auto_backup", v).apply()
 
+    var userName: String
+        get() = sp.getString("user_name", "") ?: ""
+        set(v) = sp.edit().putString("user_name", v).apply()
+
     val userId: String
         get() = sp.getString("user_id", null) ?: run {
             val id = (20000000..29999999).random().toString()

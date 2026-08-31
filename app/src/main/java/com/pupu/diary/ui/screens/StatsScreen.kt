@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pupu.diary.data.Bristol
 import com.pupu.diary.data.Moods
+import com.pupu.diary.data.PoopColors
 import com.pupu.diary.data.PoopRecord
 import com.pupu.diary.ui.AppState
 import com.pupu.diary.ui.components.BarChart
@@ -92,8 +93,18 @@ fun StatsScreen(state: AppState, onEdit: (PoopRecord) -> Unit = {}) {
         else -> LocalDate.now().minusDays(29).toStartMs()
     }
     val inRange = state.records.filter { it.time >= startMs }
-    // 数据戳：条数 + 时间总和，编辑/增删记录后缓存图表自动失效重算
-    val dataStamp = state.records.size * 31L + state.records.sumOf { it.time }
+    // 数据戳：条数 + 逐条哈希，编辑/增删记录（含颜色与状态字段）后缓存图表自动失效重算
+    val dataStamp = state.records.size * 31L + state.records.sumOf { it.hashCode().toLong() }
+
+    // 环比：与等长的上一周期对比（日 vs 昨天 / 周 vs 前 7 天 / 月 vs 前 30 天 / 年 vs 前 12 个月）
+    val prevStartMs = when (range) {
+        0 -> LocalDate.now().minusDays(1).toStartMs()
+        1 -> LocalDate.now().minusDays(13).toStartMs()
+        3 -> LocalDate.now().minusMonths(23).withDayOfMonth(1).toStartMs()
+        else -> LocalDate.now().minusDays(59).toStartMs()
+    }
+    val prevRange = state.records.filter { it.time >= prevStartMs && it.time < startMs }
+    val prevAvg = if (prevRange.isNotEmpty()) prevRange.map { it.smoothness }.average().roundToInt() else null
     val (bars, labels) = remember(range, dataStamp) {
         buildBars(state.records, range, todayStart)
     }
@@ -141,6 +152,14 @@ fun StatsScreen(state: AppState, onEdit: (PoopRecord) -> Unit = {}) {
                     SummaryMetric("$animTotal", "记录次数")
                     SummaryMetric("$daysCount", "记录天数")
                     SummaryMetric("$avgSmooth%", "平均顺滑")
+                }
+                if (prevRange.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    DeltaLine(
+                        dTotal = total - prevRange.size,
+                        dDays = daysCount - prevRange.map { it.time.toLocalDate() }.distinct().size,
+                        dSmooth = prevAvg?.let { avgSmooth - it }
+                    )
                 }
             }
         }
@@ -315,6 +334,45 @@ private fun SummaryMetric(value: String, label: String) {
     }
 }
 
+/** 环比摘要：与上一周期对比，正向主色深绿、负向暖红 */
+@Composable
+private fun DeltaLine(dTotal: Int, dDays: Int, dSmooth: Int?) {
+    val palette = LocalAppPalette.current
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("较上一周期", fontSize = 11.sp, color = palette.textSub)
+        Spacer(Modifier.width(12.dp))
+        DeltaText("次数", dTotal)
+        Spacer(Modifier.width(12.dp))
+        DeltaText("天数", dDays)
+        dSmooth?.let {
+            Spacer(Modifier.width(12.dp))
+            DeltaText("顺滑", it)
+        }
+    }
+}
+
+@Composable
+private fun DeltaText(label: String, delta: Int) {
+    val palette = LocalAppPalette.current
+    val sign = if (delta > 0) "+" else ""
+    Text(
+        "$label $sign$delta",
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = if (delta >= 0) palette.primaryDeep else Color(0xFFD06A5A)
+    )
+}
+
+/** 颜色 + 身体状态的附加摘要（仅在记录里出现时展示） */
+private fun extraInfo(r: PoopRecord): String {
+    val parts = mutableListOf<String>()
+    r.colorType?.let { parts.add(PoopColors.label(it)) }
+    if (r.abdominalPain) parts.add("腹痛")
+    if (r.straining) parts.add("费力")
+    if (r.incomplete) parts.add("未排净")
+    return parts.joinToString(" · ")
+}
+
 @Composable
 private fun Segmented(options: List<String>, selected: Int, onChange: (Int) -> Unit) {
     val palette = LocalAppPalette.current
@@ -410,6 +468,8 @@ private fun RecentRow(r: PoopRecord, onEdit: (PoopRecord) -> Unit, onDelete: () 
                     buildString {
                         append("${r.bristol}型 ${Bristol.label(r.bristol)} · 心情${Moods.labels[r.mood.coerceIn(0, 4)]}")
                         if (r.durationMin > 0) append(" · ${r.durationMin} 分钟")
+                        val extra = extraInfo(r)
+                        if (extra.isNotEmpty()) append(" · $extra")
                     },
                     fontSize = 11.sp,
                     color = palette.textSub
@@ -567,6 +627,15 @@ private fun buildInsights(records: List<PoopRecord>): List<String> {
     val avg = records.map { it.smoothness }.average().roundToInt()
     out.add("平均顺滑度 $avg%，${if (avg >= 60) "状态在线" else "多喝水会更好"}")
 
+    // 身体状态预警（v2.2.0 新增字段，最近 10 条里出现较频才提示）
+    val recent = records.take(10)
+    val painCount = recent.count { it.abdominalPain }
+    if (painCount >= 3) {
+        out.add("最近 10 条中有 $painCount 次腹痛，若持续不适建议咨询医生")
+    } else if (recent.count { it.straining || it.incomplete } >= 3) {
+        out.add("最近常觉得费力或没排净，多喝水、多吃纤维会舒服些")
+    }
+
     // 常见心情
     val mood = records.groupingBy { it.mood }.eachCount().maxByOrNull { it.value }?.key
     if (mood != null) out.add("记录时的心情多是「${Moods.labels[mood.coerceIn(0, 4)]}」")
@@ -671,6 +740,8 @@ private fun RangeCalendar(
                                     buildString {
                                         append("${r.bristol}型 ${Bristol.label(r.bristol)} · 顺滑 ${r.smoothness}%")
                                         if (r.durationMin > 0) append(" · ${r.durationMin} 分钟")
+                                        val extra = extraInfo(r)
+                                        if (extra.isNotEmpty()) append(" · $extra")
                                     },
                                     fontSize = 11.sp,
                                     color = palette.textSub

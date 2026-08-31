@@ -86,14 +86,15 @@ fun HomeScreen(state: AppState, onGoTab: (Tab) -> Unit, onGoTips: () -> Unit) {
         enter.animateTo(1f, tween(720, easing = FastOutSlowInEasing))
     }
 
-    // 时段问候
-    val greeting = remember {
-        when (java.time.LocalTime.now().hour) {
-            in 5..11 -> "早上好呀～"
-            in 12..13 -> "中午好呀～"
-            in 14..18 -> "下午好呀～"
-            else -> "晚上好呀～"
+    // 时段问候（设置了昵称则带上称呼）
+    val greeting = remember(state.userName) {
+        val base = when (java.time.LocalTime.now().hour) {
+            in 5..11 -> "早上好呀"
+            in 12..13 -> "中午好呀"
+            in 14..18 -> "下午好呀"
+            else -> "晚上好呀"
         }
+        if (state.userName.isBlank()) "$base～" else "$base，${state.userName}～"
     }
 
     // 点击角色：爱心迸发 + 气泡对话

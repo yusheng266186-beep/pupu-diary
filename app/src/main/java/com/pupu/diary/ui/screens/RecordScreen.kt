@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedTextField
@@ -61,6 +62,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pupu.diary.data.Bristol
+import com.pupu.diary.data.PoopColors
 import com.pupu.diary.data.PoopRecord
 import com.pupu.diary.ui.AppState
 import com.pupu.diary.ui.components.BristolIcon
@@ -87,11 +89,21 @@ fun RecordScreen(state: AppState, onDone: () -> Unit, edit: PoopRecord? = null) 
     var smooth by remember { mutableFloatStateOf(edit?.smoothness?.toFloat() ?: 70f) }
     var note by remember { mutableStateOf(edit?.note ?: "") }
     var duration by remember { mutableIntStateOf(edit?.durationMin ?: 0) }
+    var colorType by remember { mutableStateOf(edit?.colorType) }
+    var pain by remember { mutableStateOf(edit?.abdominalPain ?: false) }
+    var straining by remember { mutableStateOf(edit?.straining ?: false) }
+    var incomplete by remember { mutableStateOf(edit?.incomplete ?: false) }
     var timeMs by remember { mutableLongStateOf(edit?.time ?: System.currentTimeMillis()) }
     var useNow by remember { mutableStateOf(edit == null) }
     var showTimePick by remember { mutableStateOf(false) }
     var moreOpen by remember {
-        mutableStateOf(edit != null && (edit.note.isNotBlank() || edit.durationMin > 0))
+        mutableStateOf(
+            edit != null && (
+                edit.note.isNotBlank() || edit.durationMin > 0 ||
+                    edit.colorType != null || edit.abdominalPain ||
+                    edit.straining || edit.incomplete
+                )
+        )
     }
     var saveTrigger by remember { mutableIntStateOf(0) }
     var shakeTrigger by remember { mutableIntStateOf(0) }
@@ -222,7 +234,7 @@ fun RecordScreen(state: AppState, onDone: () -> Unit, edit: PoopRecord? = null) 
                     SectionTitle("更多记录")
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        if (moreOpen) "收起" else "时长 · 备注",
+                        if (moreOpen) "收起" else "颜色 · 状态 · 时长 · 备注",
                         fontSize = 12.sp,
                         color = palette.primaryDeep
                     )
@@ -250,6 +262,63 @@ fun RecordScreen(state: AppState, onDone: () -> Unit, edit: PoopRecord? = null) 
                                     selected = duration == min,
                                     modifier = if (idx == 0) Modifier else Modifier.padding(start = 8.dp),
                                     onClick = { duration = if (duration == min) 0 else min }
+                                )
+                            }
+                        }
+                        // 颜色日记（可选，来自「便便晴天」的同源色板）
+                        Spacer(Modifier.height(16.dp))
+                        SectionTitle("颜色日记")
+                        Text(
+                            "今天是什么颜色？（可选）",
+                            fontSize = 11.sp,
+                            color = palette.textSub,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            Modifier.horizontalScroll(rememberScrollState()),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            PoopColors.labels.indices.forEach { idx ->
+                                ColorDot(
+                                    type = idx,
+                                    selected = colorType == idx,
+                                    modifier = if (idx == 0) Modifier else Modifier.padding(start = 10.dp),
+                                    onClick = {
+                                        colorType = if (colorType == idx) null else idx
+                                    }
+                                )
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            DurationChip(
+                                text = "不记录",
+                                selected = colorType == null,
+                                onClick = { colorType = null }
+                            )
+                        }
+                        // 身体状态（可选三项）
+                        Spacer(Modifier.height(16.dp))
+                        SectionTitle("身体状态")
+                        Text(
+                            "有感觉到就点亮，没有就跳过（可选）",
+                            fontSize = 11.sp,
+                            color = palette.textSub,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            Modifier.horizontalScroll(rememberScrollState())
+                        ) {
+                            listOf(
+                                Triple("肚肚不舒服", pain) { pain = !pain },
+                                Triple("有点费力", straining) { straining = !straining },
+                                Triple("没排净", incomplete) { incomplete = !incomplete }
+                            ).forEachIndexed { idx, (label, value, toggle) ->
+                                DurationChip(
+                                    text = label,
+                                    selected = value,
+                                    modifier = if (idx == 0) Modifier else Modifier.padding(start = 8.dp),
+                                    onClick = toggle
                                 )
                             }
                         }
@@ -309,11 +378,18 @@ fun RecordScreen(state: AppState, onDone: () -> Unit, edit: PoopRecord? = null) 
                                     smoothness = smooth.toInt(),
                                     note = note.trim(),
                                     time = t,
-                                    durationMin = duration
+                                    durationMin = duration,
+                                    colorType = colorType,
+                                    abdominalPain = pain,
+                                    straining = straining,
+                                    incomplete = incomplete
                                 )
                             )
                         } else {
-                            state.addRecord(b, mood, smooth.toInt(), note.trim(), t, duration)
+                            state.addRecord(
+                                b, mood, smooth.toInt(), note.trim(), t, duration,
+                                colorType, pain, straining, incomplete
+                            )
                         }
                         saved = true
                         saveTrigger++
@@ -451,6 +527,61 @@ private fun DurationChip(
         Text(
             text,
             fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = if (selected) palette.primaryDeep else palette.textSub
+        )
+    }
+}
+
+/** 颜色日记的圆点：外圈浅底 + 选中时主色描边 */
+@Composable
+private fun ColorDot(
+    type: Int,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val palette = LocalAppPalette.current
+    Column(
+        modifier.clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = onClick
+        ),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        val scale by animateFloatAsState(
+            targetValue = if (selected) 1.15f else 1f,
+            animationSpec = spring(dampingRatio = 0.5f, stiffness = 420f),
+            label = "cScale"
+        )
+        Box(
+            Modifier
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(palette.card)
+                .border(
+                    if (selected) 2.dp else 1.dp,
+                    if (selected) palette.primary else palette.cardAlt,
+                    CircleShape
+                )
+                .padding(5.dp)
+        ) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape)
+                    .background(PoopColors.color(type))
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            PoopColors.label(type),
+            fontSize = 10.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             color = if (selected) palette.primaryDeep else palette.textSub
         )

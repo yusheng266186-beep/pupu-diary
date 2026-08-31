@@ -9,8 +9,24 @@ data class PoopRecord(
     val mood: Int,      // 0..4
     val smoothness: Int, // 0..100
     val note: String = "",
-    val durationMin: Int = 0 // 排便时长（分钟），0 = 未记录
+    val durationMin: Int = 0, // 排便时长（分钟），0 = 未记录
+    val colorType: Int? = null,   // 颜色日记 0..5，null = 未记录（DB v4）
+    val abdominalPain: Boolean = false, // 肚肚不舒服
+    val straining: Boolean = false,     // 今天有点费力
+    val incomplete: Boolean = false     // 没排干净的感觉
 )
+
+/** 颜色日记：与「便便晴天」同源的临床色板 */
+object PoopColors {
+    val labels = listOf("深棕", "棕色", "黄褐", "浅黄", "红棕", "其他")
+    val colors = listOf(
+        Color(0xFF80523F), Color(0xFF9C6B44), Color(0xFFC18B4A),
+        Color(0xFFE4C678), Color(0xFFB86F5A), Color(0xFFD6BCA5)
+    )
+
+    fun label(type: Int) = labels.getOrElse(type) { "未记录颜色" }
+    fun color(type: Int) = colors.getOrElse(type) { Color(0xFFBE8E60) }
+}
 
 object Bristol {
     val labels = listOf("硬块状", "干硬块状", "略块状", "泥块状", "软块状", "糊泥状", "水样状")

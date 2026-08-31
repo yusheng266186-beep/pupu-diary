@@ -31,6 +31,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -81,6 +83,8 @@ fun ProfileScreen(state: AppState) {
     val scope = rememberCoroutineScope()
     var panel by remember { mutableStateOf<String?>(null) }
     var showAbout by remember { mutableStateOf(false) }
+    var showNameEdit by remember { mutableStateOf(false) }
+    var nameDraft by remember { mutableStateOf("") }
     var showRecordTime by remember { mutableStateOf(false) }
     var showWaterTime by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
@@ -135,8 +139,19 @@ fun ProfileScreen(state: AppState) {
         Text("我的", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = palette.textMain)
         Spacer(Modifier.height(14.dp))
 
-        // 头像卡
-        SoftCard(modifier = Modifier.fillMaxWidth(), corner = 24.dp) {
+        // 头像卡（轻点设置昵称）
+        SoftCard(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    nameDraft = state.userName
+                    showNameEdit = true
+                },
+            corner = 24.dp
+        ) {
             Row(
                 Modifier.padding(18.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -152,7 +167,12 @@ fun ProfileScreen(state: AppState) {
                 }
                 Spacer(Modifier.width(14.dp))
                 Column {
-                    Text("小治愈", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = palette.textMain)
+                    Text(
+                        state.userName.ifBlank { "小治愈" },
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = palette.textMain
+                    )
                     Spacer(Modifier.height(2.dp))
                     Text(
                         "ID：${state.prefs.userId} · 记录 ${state.records.size} 条",
@@ -160,7 +180,11 @@ fun ProfileScreen(state: AppState) {
                         color = palette.textSub
                     )
                     Spacer(Modifier.height(5.dp))
-                    Text("今天也要轻轻松松呀", fontSize = 12.sp, color = palette.primaryDeep)
+                    Text(
+                        "轻点这里设置昵称 · 今天也要轻轻松松呀",
+                        fontSize = 12.sp,
+                        color = palette.primaryDeep
+                    )
                 }
             }
         }
@@ -396,6 +420,40 @@ fun ProfileScreen(state: AppState) {
                 state.clearAllRecords()
                 showClearConfirm = false
                 Toast.makeText(context, "已清空所有记录", Toast.LENGTH_SHORT).show()
+            },
+            dismissText = "取消"
+        )
+    }
+
+    if (showNameEdit) {
+        PupuDialog(
+            onDismissRequest = { showNameEdit = false },
+            title = "给自己起个昵称",
+            content = {
+                OutlinedTextField(
+                    value = nameDraft,
+                    onValueChange = { if (it.length <= 12) nameDraft = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = {
+                        Text("最多 12 个字，留空则恢复默认", fontSize = 13.sp, color = palette.textSub)
+                    },
+                    shape = RoundedCornerShape(18.dp),
+                    maxLines = 1,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = palette.primary,
+                        unfocusedBorderColor = palette.cardAlt,
+                        focusedContainerColor = palette.card,
+                        unfocusedContainerColor = palette.card,
+                        cursorColor = palette.primary,
+                        focusedTextColor = palette.textMain,
+                        unfocusedTextColor = palette.textMain
+                    )
+                )
+            },
+            confirmText = "保存",
+            onConfirm = {
+                state.updateUserName(nameDraft)
+                Toast.makeText(context, "昵称已保存，首页会这样叫你哦", Toast.LENGTH_SHORT).show()
             },
             dismissText = "取消"
         )

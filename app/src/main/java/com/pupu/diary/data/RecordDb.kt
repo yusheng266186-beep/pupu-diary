@@ -17,7 +17,11 @@ class RecordDb(context: Context) :
                 "mood INTEGER NOT NULL," +
                 "smoothness INTEGER NOT NULL," +
                 "note TEXT NOT NULL DEFAULT ''," +
-                "duration INTEGER NOT NULL DEFAULT 0)"
+                "duration INTEGER NOT NULL DEFAULT 0," +
+                "colorType INTEGER," +
+                "abdominalPain INTEGER NOT NULL DEFAULT 0," +
+                "straining INTEGER NOT NULL DEFAULT 0," +
+                "incomplete INTEGER NOT NULL DEFAULT 0)"
         )
         db.execSQL("CREATE INDEX idx_records_time ON records(time)")
     }
@@ -29,24 +33,36 @@ class RecordDb(context: Context) :
         if (oldVersion < 3) {
             db.execSQL("ALTER TABLE records ADD COLUMN duration INTEGER NOT NULL DEFAULT 0")
         }
+        if (oldVersion < 4) {
+            // v2.2.0：颜色日记 + 三项临床状态（便便晴天同源字段），旧数据留空即可
+            db.execSQL("ALTER TABLE records ADD COLUMN colorType INTEGER")
+            db.execSQL("ALTER TABLE records ADD COLUMN abdominalPain INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE records ADD COLUMN straining INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE records ADD COLUMN incomplete INTEGER NOT NULL DEFAULT 0")
+        }
     }
 
     fun all(): List<PoopRecord> {
         val out = mutableListOf<PoopRecord>()
         readableDatabase.rawQuery(
-            "SELECT _id, time, bristol, mood, smoothness, note, duration FROM records ORDER BY time DESC",
+            "SELECT * FROM records ORDER BY time DESC",
             null
         ).use { c ->
             while (c.moveToNext()) {
+                val colorIdx = c.getColumnIndexOrThrow("colorType")
                 out.add(
                     PoopRecord(
-                        id = c.getLong(0),
-                        time = c.getLong(1),
-                        bristol = c.getInt(2),
-                        mood = c.getInt(3),
-                        smoothness = c.getInt(4),
-                        note = c.getString(5) ?: "",
-                        durationMin = c.getInt(6)
+                        id = c.getLong(c.getColumnIndexOrThrow("_id")),
+                        time = c.getLong(c.getColumnIndexOrThrow("time")),
+                        bristol = c.getInt(c.getColumnIndexOrThrow("bristol")),
+                        mood = c.getInt(c.getColumnIndexOrThrow("mood")),
+                        smoothness = c.getInt(c.getColumnIndexOrThrow("smoothness")),
+                        note = c.getString(c.getColumnIndexOrThrow("note")) ?: "",
+                        durationMin = c.getInt(c.getColumnIndexOrThrow("duration")),
+                        colorType = if (c.isNull(colorIdx)) null else c.getInt(colorIdx),
+                        abdominalPain = c.getInt(c.getColumnIndexOrThrow("abdominalPain")) != 0,
+                        straining = c.getInt(c.getColumnIndexOrThrow("straining")) != 0,
+                        incomplete = c.getInt(c.getColumnIndexOrThrow("incomplete")) != 0
                     )
                 )
             }
@@ -85,9 +101,13 @@ class RecordDb(context: Context) :
         put("smoothness", r.smoothness)
         put("note", r.note)
         put("duration", r.durationMin)
+        put("colorType", r.colorType)
+        put("abdominalPain", if (r.abdominalPain) 1 else 0)
+        put("straining", if (r.straining) 1 else 0)
+        put("incomplete", if (r.incomplete) 1 else 0)
     }
 
     companion object {
-        private const val DB_VERSION = 3
+        private const val DB_VERSION = 4
     }
 }

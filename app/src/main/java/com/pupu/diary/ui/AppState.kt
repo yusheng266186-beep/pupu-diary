@@ -37,6 +37,10 @@ class AppState(context: Context) {
     var autoBackupOn by mutableStateOf(prefs.autoBackupOn)
         private set
 
+    /** 昵称（首页问候与我的页展示），空 = 未设置 */
+    var userName: String by mutableStateOf(prefs.userName)
+        private set
+
     var water by mutableIntStateOf(0)
         private set
     var exercise by mutableIntStateOf(0)
@@ -71,12 +75,18 @@ class AppState(context: Context) {
         smoothness: Int,
         note: String = "",
         time: Long = System.currentTimeMillis(),
-        durationMin: Int = 0
+        durationMin: Int = 0,
+        colorType: Int? = null,
+        abdominalPain: Boolean = false,
+        straining: Boolean = false,
+        incomplete: Boolean = false
     ) {
         scope.launch {
             val r = PoopRecord(
                 time = time, bristol = bristol, mood = mood,
-                smoothness = smoothness, note = note, durationMin = durationMin
+                smoothness = smoothness, note = note, durationMin = durationMin,
+                colorType = colorType, abdominalPain = abdominalPain,
+                straining = straining, incomplete = incomplete
             )
             val id = db.insert(r)
             records.add(0, r.copy(id = id))
@@ -132,6 +142,11 @@ class AppState(context: Context) {
     fun setTheme(index: Int) {
         themeIndex = index
         prefs.themeIndex = index
+    }
+
+    fun updateUserName(name: String) {
+        userName = name.trim().take(12)
+        prefs.userName = userName
     }
 
     fun setPrivacy(on: Boolean) {
