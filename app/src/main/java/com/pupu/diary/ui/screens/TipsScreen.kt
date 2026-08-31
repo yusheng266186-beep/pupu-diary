@@ -52,6 +52,7 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pupu.diary.data.Bristol
+import com.pupu.diary.data.PoopColors
 import com.pupu.diary.ui.AppState
 import com.pupu.diary.ui.components.BackHeader
 import com.pupu.diary.ui.components.BristolIcon
@@ -128,6 +129,8 @@ fun TipsScreen(state: AppState, onBack: () -> Unit) {
             )
             Spacer(Modifier.height(16.dp))
             BristolGuide()
+            Spacer(Modifier.height(16.dp))
+            ColorGuide()
             Spacer(Modifier.height(16.dp))
             TipCard(0, "关于喝水", "每天 1500–2000ml 温水，肠道润滑了，便便才顺畅～")
             Spacer(Modifier.height(8.dp))
@@ -442,6 +445,77 @@ private fun ProgressBar(fraction: Float) {
                 Brush.horizontalGradient(listOf(palette.primary, palette.primaryDeep)),
                 size = Size(size.width * f, size.height),
                 cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+            )
+        }
+    }
+}
+
+/** 颜色日记速查：色点 + 名称 + 一句话解读（v3.0.0，与颜色日记功能配套） */
+@Composable
+private fun ColorGuide() {
+    val palette = LocalAppPalette.current
+    val notes = listOf(
+        "水分偏少，记得多喝水",
+        "最理想的状态，继续保持",
+        "消化顺畅，正常范围",
+        "偏浅了些，可能消化偏快",
+        "深色受饮食影响大，持续出现要留意",
+        "吃了特别的东西？对照看看"
+    )
+    SoftCard(modifier = Modifier.fillMaxWidth(), corner = 24.dp) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                "颜色速查",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = palette.textMain
+            )
+            Text(
+                "记录时选的颜色代表什么？",
+                fontSize = 11.sp,
+                color = palette.textSub
+            )
+            Spacer(Modifier.height(10.dp))
+            PoopColors.labels.indices.forEach { i ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier
+                            .size(34.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(palette.cardAlt)
+                            .padding(4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(PoopColors.color(i))
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            PoopColors.label(i),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = palette.textMain
+                        )
+                        Text(notes[i], fontSize = 11.sp, color = palette.textSub)
+                    }
+                }
+            }
+            Text(
+                "颜色受饮食影响很大，仅作日常参考；若持续发黑或带血，请及时就医。",
+                fontSize = 10.sp,
+                color = palette.textSub,
+                lineHeight = 15.sp,
+                modifier = Modifier.padding(top = 8.dp)
             )
         }
     }

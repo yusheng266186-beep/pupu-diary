@@ -45,6 +45,11 @@ class Prefs(context: Context) {
         get() = sp.getString("user_name", "") ?: ""
         set(v) = sp.edit().putString("user_name", v).apply()
 
+    /** 夜间模式：0 跟随系统 / 1 常开 / 2 常关 */
+    var darkMode: Int
+        get() = sp.getInt("dark_mode", 0)
+        set(v) = sp.edit().putInt("dark_mode", v).apply()
+
     val userId: String
         get() = sp.getString("user_id", null) ?: run {
             val id = (20000000..29999999).random().toString()

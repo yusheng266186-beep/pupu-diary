@@ -48,12 +48,14 @@ import com.pupu.diary.data.PoopRecord
 import com.pupu.diary.ui.components.BottomBar
 import com.pupu.diary.ui.components.PoopCharacter
 import com.pupu.diary.ui.components.Tab
+import com.pupu.diary.ui.components.UndoBar
 import com.pupu.diary.ui.screens.HomeScreen
 import com.pupu.diary.ui.screens.ProfileScreen
 import com.pupu.diary.ui.screens.RecordScreen
 import com.pupu.diary.ui.screens.StatsScreen
 import com.pupu.diary.ui.screens.TipsScreen
 import com.pupu.diary.ui.theme.AnimatedAppPalette
+import com.pupu.diary.ui.theme.DARK_PALETTES
 import com.pupu.diary.ui.theme.LocalAppPalette
 import com.pupu.diary.ui.theme.PALETTES
 import com.pupu.diary.ui.theme.toColorScheme
@@ -62,7 +64,17 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun AppRoot(state: AppState, navTarget: androidx.compose.runtime.MutableState<String?>) {
-    val palette = AnimatedAppPalette(PALETTES[state.themeIndex])
+    // 夜间模式：0 跟随系统 / 1 常开 / 2 常关；切换走 AnimatedAppPalette 的 450ms 全色过渡
+    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isDark = when (state.darkMode) {
+        1 -> true
+        2 -> false
+        else -> systemDark
+    }
+    val palette = AnimatedAppPalette(
+        if (isDark) DARK_PALETTES[state.themeIndex.coerceIn(DARK_PALETTES.indices)] 
+        else PALETTES[state.themeIndex.coerceIn(PALETTES.indices)]
+    )
     androidx.compose.material3.MaterialTheme(colorScheme = palette.toColorScheme()) {
         CompositionLocalProvider(LocalAppPalette provides palette) {
             var showIntro by rememberSaveable { mutableStateOf(true) }
@@ -173,6 +185,14 @@ private fun MainScaffold(state: AppState, navTarget: androidx.compose.runtime.Mu
                     RecordScreen(state, edit = e, onDone = { editing = null })
                 }
             }
+            // 删除撤销条（全 App 级，悬浮于内容区底部）
+            UndoBar(
+                visible = state.pendingUndo != null,
+                onUndo = { state.undoLastDelete() },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 10.dp)
+            )
         }
         Box(Modifier.navigationBarsPadding()) {
             BottomBar(current = tab, onSelect = { tab = it })

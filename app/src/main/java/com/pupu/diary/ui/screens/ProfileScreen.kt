@@ -70,6 +70,7 @@ import com.pupu.diary.ui.components.SoftCard
 import com.pupu.diary.ui.theme.LocalAppPalette
 import com.pupu.diary.ui.theme.PALETTES
 import com.pupu.diary.util.Backup
+import com.pupu.diary.util.Csv
 import com.pupu.diary.util.minutesToCn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -94,8 +95,7 @@ fun ProfileScreen(state: AppState) {
     ) { }
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) {
+    ) { uri ->        if (uri != null) {
             scope.launch {
                 val json = withContext(Dispatchers.IO) {
                     try {
@@ -116,6 +116,29 @@ fun ProfileScreen(state: AppState) {
                         ).show()
                     }
                 }
+            }
+        }
+    }
+    val csvLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val ok = withContext(Dispatchers.IO) {
+                    try {
+                        context.contentResolver.openOutputStream(uri)?.use {
+                            it.write(Csv.build(state.records.toList()))
+                        }
+                        true
+                    } catch (_: Exception) {
+                        false
+                    }
+                }
+                Toast.makeText(
+                    context,
+                    if (ok) "CSV 已导出，可发给医生或用表格软件打开" else "导出失败",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
     }
@@ -305,6 +328,29 @@ fun ProfileScreen(state: AppState) {
                 onToggle = { state.setPrivacy(it) }
             )
             SheetHint("开启后，切换到最近任务时隐藏页面内容，防止旁人偷看你的小秘密。")
+            Spacer(Modifier.height(6.dp))
+            SheetTitle("夜间模式")
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                listOf("跟随系统", "常开", "常关").forEachIndexed { i, label ->
+                    val selected = state.darkMode == i
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = if (selected) palette.primarySoft else palette.cardAlt
+                    ) {
+                        Text(
+                            label,
+                            modifier = Modifier
+                                .clickable { state.updateDarkMode(i) }
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            fontSize = 13.sp,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (selected) palette.primaryDeep else palette.textSub
+                        )
+                    }
+                }
+            }
+            SheetHint("夜间为暖炭色深色主题，切换时全 App 颜色平滑过渡。")
         }
         "backup" -> Sheet(onDismiss = { panel = null }) {
             SheetTitle("数据备份")
@@ -333,6 +379,10 @@ fun ProfileScreen(state: AppState) {
             SheetActionRow(iconKind = 6, title = "导入恢复", sub = "从备份文件合并记录") {
                 panel = null
                 importLauncher.launch(arrayOf("*/*"))
+            }
+            SheetActionRow(iconKind = 3, title = "导出 CSV（医生查看）", sub = "表格形式，含形状/颜色/腹痛等全部字段") {
+                panel = null
+                csvLauncher.launch("噗噗日记_${com.pupu.diary.util.todayKey()}.csv")
             }
             SheetSwitchRow(
                 text = "每周自动备份",

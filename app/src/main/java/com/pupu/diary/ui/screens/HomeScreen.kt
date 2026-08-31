@@ -190,7 +190,10 @@ fun HomeScreen(state: AppState, onGoTab: (Tab) -> Unit, onGoTips: () -> Unit) {
                         .align(Alignment.TopStart)
                         .padding(12.dp)
                         .clip(RoundedCornerShape(50))
-                        .background(Color.White.copy(alpha = 0.78f))
+                        .background(
+                            if (palette.isDark) palette.card.copy(alpha = 0.85f)
+                            else Color.White.copy(alpha = 0.78f)
+                        )
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
@@ -316,27 +319,37 @@ private fun HomeScene(onCharacterTap: () -> Unit) {
                 )
             )
 
-            // 太阳与光线
+            // 太阳与光线（夜间化作一弯月亮）
             val sunC = Offset(w * 0.78f, h * 0.15f)
             val sunR = w * 0.055f
-            repeat(8) { i ->
-                rotate(degrees = sunAngle + i * 45f, pivot = sunC) {
-                    drawLine(
-                        palette.accent.copy(alpha = 0.65f),
-                        Offset(sunC.x, sunC.y - sunR * 1.55f),
-                        Offset(sunC.x, sunC.y - sunR * 1.95f),
-                        strokeWidth = w * 0.012f,
-                        cap = StrokeCap.Round
-                    )
+            if (palette.isDark) {
+                drawCircle(palette.accent.copy(alpha = 0.14f), sunR * 1.55f, sunC)
+                drawCircle(palette.accent, sunR, sunC)
+                drawCircle(
+                    palette.bg,
+                    sunR * 0.85f,
+                    Offset(sunC.x + sunR * 0.42f, sunC.y - sunR * 0.20f)
+                )
+            } else {
+                repeat(8) { i ->
+                    rotate(degrees = sunAngle + i * 45f, pivot = sunC) {
+                        drawLine(
+                            palette.accent.copy(alpha = 0.65f),
+                            Offset(sunC.x, sunC.y - sunR * 1.55f),
+                            Offset(sunC.x, sunC.y - sunR * 1.95f),
+                            strokeWidth = w * 0.012f,
+                            cap = StrokeCap.Round
+                        )
+                    }
                 }
+                drawCircle(palette.accent.copy(alpha = 0.3f), sunR * 1.4f, sunC)
+                drawCircle(palette.accent, sunR, sunC)
             }
-            drawCircle(palette.accent.copy(alpha = 0.3f), sunR * 1.4f, sunC)
-            drawCircle(palette.accent, sunR, sunC)
 
-            // 云
+            // 云（夜间降低不透明度，像夜色里的云）
             val cx = w * (0.12f + 0.12f * cloudX)
             val cy = h * 0.12f
-            val cloud = Color.White.copy(alpha = 0.85f)
+            val cloud = Color.White.copy(alpha = if (palette.isDark) 0.28f else 0.85f)
             drawCircle(cloud, w * 0.045f, Offset(cx, cy))
             drawCircle(cloud, w * 0.034f, Offset(cx + w * 0.052f, cy + w * 0.012f))
             drawRoundRect(
@@ -378,10 +391,11 @@ private fun HomeScene(onCharacterTap: () -> Unit) {
             plant(w * 0.09f, h * 0.82f, h * 0.20f, w, palette, flip = false)
             plant(w * 0.91f, h * 0.85f, h * 0.16f, w, palette, flip = true)
 
-            // 白色小花
-            smallFlower(w * 0.30f, h * 0.73f, w * 0.020f)
-            smallFlower(w * 0.68f, h * 0.78f, w * 0.016f)
-            smallFlower(w * 0.50f, h * 0.84f, w * 0.013f)
+            // 白色小花（夜间花瓣降透明度）
+            val petal = Color.White.copy(alpha = if (palette.isDark) 0.55f else 0.95f)
+            smallFlower(w * 0.30f, h * 0.73f, w * 0.020f, petal)
+            smallFlower(w * 0.68f, h * 0.78f, w * 0.016f, petal)
+            smallFlower(w * 0.50f, h * 0.84f, w * 0.013f, petal)
 
             // 漂浮微光（错峰闪烁的小星星）
             listOf(
@@ -477,13 +491,13 @@ private fun DrawScope.plant(
     }
 }
 
-/** 白瓣黄心小花 */
-private fun DrawScope.smallFlower(cx: Float, cy: Float, r: Float) {
+/** 白瓣黄心小花（花瓣色由调用方按明暗主题传入） */
+private fun DrawScope.smallFlower(cx: Float, cy: Float, r: Float, petal: Color) {
     val center = Offset(cx, cy)
     repeat(5) { i ->
         rotate(degrees = i * 72f, pivot = center) {
             drawCircle(
-                Color.White.copy(alpha = 0.95f),
+                petal,
                 radius = r * 0.62f,
                 center = Offset(cx, cy - r * 1.05f)
             )

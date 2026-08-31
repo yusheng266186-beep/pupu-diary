@@ -20,8 +20,8 @@ android {
         applicationId = "com.pupu.diary"
         minSdk = 26
         targetSdk = 34
-        versionCode = 13
-        versionName = "2.2.0"
+        versionCode = 14
+        versionName = "3.0.0"
     }
 
     signingConfigs {

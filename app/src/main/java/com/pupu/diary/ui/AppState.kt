@@ -15,6 +15,7 @@ import com.pupu.diary.util.todayKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
@@ -40,6 +41,15 @@ class AppState(context: Context) {
     /** 昵称（首页问候与我的页展示），空 = 未设置 */
     var userName: String by mutableStateOf(prefs.userName)
         private set
+
+    /** 夜间模式：0 跟随系统 / 1 常开 / 2 常关 */
+    var darkMode by mutableIntStateOf(prefs.darkMode)
+        private set
+
+    /** 最近一条待撤销删除的记录（撤销条 5 秒窗口） */
+    var pendingUndo by mutableStateOf<PoopRecord?>(null)
+        private set
+    private var undoJob: kotlinx.coroutines.Job? = null
 
     var water by mutableIntStateOf(0)
         private set
@@ -110,6 +120,29 @@ class AppState(context: Context) {
         }
     }
 
+    /** 删除并给出 5 秒撤销窗口（撤销条），误删不打断 */
+    fun removeWithUndo(r: PoopRecord) {
+        deleteRecord(r)
+        pendingUndo = r
+        undoJob?.cancel()
+        undoJob = scope.launch {
+            delay(5000)
+            if (pendingUndo?.time == r.time && pendingUndo?.bristol == r.bristol) pendingUndo = null
+        }
+    }
+
+    /** 撤销最近一次删除：整条按原字段回插 */
+    fun undoLastDelete() {
+        val r = pendingUndo ?: return
+        pendingUndo = null
+        undoJob?.cancel()
+        scope.launch {
+            val id = db.insert(r)
+            records.add(0, r.copy(id = id))
+            records.sortByDescending { it.time }
+        }
+    }
+
     /** 清空全部记录（设置里的危险操作，调用前需二次确认） */
     fun clearAllRecords() {
         scope.launch {
@@ -147,6 +180,11 @@ class AppState(context: Context) {
     fun updateUserName(name: String) {
         userName = name.trim().take(12)
         prefs.userName = userName
+    }
+
+    fun updateDarkMode(mode: Int) {
+        darkMode = mode.coerceIn(0, 2)
+        prefs.darkMode = darkMode
     }
 
     fun setPrivacy(on: Boolean) {

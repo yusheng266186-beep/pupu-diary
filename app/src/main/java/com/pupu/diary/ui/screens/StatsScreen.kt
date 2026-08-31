@@ -123,8 +123,6 @@ fun StatsScreen(state: AppState, onEdit: (PoopRecord) -> Unit = {}) {
     val insightLines = remember(dataStamp) { buildInsights(state.records) }
     val rangeTitle = listOf("今日", "最近 7 天", "最近 30 天", "近 12 个月")[range]
 
-    var deleteTarget by remember { mutableStateOf<PoopRecord?>(null) }
-
     Column(
         Modifier
             .fillMaxSize()
@@ -153,13 +151,20 @@ fun StatsScreen(state: AppState, onEdit: (PoopRecord) -> Unit = {}) {
                     SummaryMetric("$daysCount", "记录天数")
                     SummaryMetric("$avgSmooth%", "平均顺滑")
                 }
-                if (prevRange.isNotEmpty()) {
-                    Spacer(Modifier.height(10.dp))
-                    DeltaLine(
-                        dTotal = total - prevRange.size,
-                        dDays = daysCount - prevRange.map { it.time.toLocalDate() }.distinct().size,
-                        dSmooth = prevAvg?.let { avgSmooth - it }
-                    )
+                // 环比行入场：淡入 + 上移（仅在上一周期有数据时出现）
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = prevRange.isNotEmpty(),
+                    enter = androidx.compose.animation.fadeIn(tween(220)) +
+                        androidx.compose.animation.slideInVertically(tween(220)) { it / 3 }
+                ) {
+                    Column {
+                        Spacer(Modifier.height(10.dp))
+                        DeltaLine(
+                            dTotal = total - prevRange.size,
+                            dDays = daysCount - prevRange.map { it.time.toLocalDate() }.distinct().size,
+                            dSmooth = prevAvg?.let { avgSmooth - it }
+                        )
+                    }
                 }
             }
         }
@@ -195,7 +200,7 @@ fun StatsScreen(state: AppState, onEdit: (PoopRecord) -> Unit = {}) {
             Spacer(Modifier.height(14.dp))
         }
 
-        RangeCalendar(state.records, dataStamp, range, onEdit = onEdit, onDelete = { deleteTarget = it })
+        RangeCalendar(state.records, dataStamp, range, onEdit = onEdit, onDelete = { state.removeWithUndo(it) })
         Spacer(Modifier.height(14.dp))
 
         SoftCard(modifier = Modifier.fillMaxWidth()) {
@@ -273,31 +278,10 @@ fun StatsScreen(state: AppState, onEdit: (PoopRecord) -> Unit = {}) {
             )
         }
         state.records.take(8).forEach { r ->
-            RecentRow(r, onEdit = onEdit, onDelete = { deleteTarget = r })
+            RecentRow(r, onEdit = onEdit, onDelete = { state.removeWithUndo(r) })
             Spacer(Modifier.height(8.dp))
         }
         Spacer(Modifier.height(24.dp))
-    }
-
-    deleteTarget?.let { target ->
-        PupuDialog(
-            onDismissRequest = { deleteTarget = null },
-            title = "删除这条记录？",
-            content = {
-                Text(
-                    "${formatFullCn(target.time)} · ${target.bristol}型",
-                    fontSize = 14.sp,
-                    color = palette.textSub
-                )
-            },
-            confirmText = "删除",
-            confirmColor = Color(0xFFD06A5A),
-            onConfirm = {
-                state.deleteRecord(target)
-                deleteTarget = null
-            },
-            dismissText = "取消"
-        )
     }
 }
 
@@ -749,7 +733,8 @@ private fun RangeCalendar(
                             }
                             Box(
                                 Modifier
-                                    .size(34.dp)
+                                    .size(44.dp)
+                                    .semantics { contentDescription = "删除这条记录" }
                                     .clickable(
                                         interactionSource = remember { MutableInteractionSource() },
                                         indication = null

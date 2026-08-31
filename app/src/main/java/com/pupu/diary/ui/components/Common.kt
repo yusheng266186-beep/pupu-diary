@@ -1,9 +1,15 @@
 package com.pupu.diary.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -315,6 +321,52 @@ fun PlusButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
                 Color.White, Offset(w * 0.1f, h / 2f), Offset(w * 0.9f, h / 2f),
                 strokeWidth = w * 0.18f, cap = StrokeCap.Round
             )
+        }
+    }
+}
+
+/** 删除撤销条：底部浮层。弹簧入场、快速退出（慢进快出的不对称时机），5 秒后自动消失 */
+@Composable
+fun UndoBar(
+    visible: Boolean,
+    onUndo: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val palette = LocalAppPalette.current
+    AnimatedVisibility(
+        visible = visible,
+        enter = slideInVertically(
+            animationSpec = spring(dampingRatio = 0.65f, stiffness = 380f),
+            initialOffsetY = { it }
+        ) + fadeIn(tween(120)),
+        exit = slideOutVertically(tween(180)) { it } + fadeOut(tween(140)),
+        modifier = modifier
+    ) {
+        Surface(
+            shape = RoundedCornerShape(50),
+            shadowElevation = 12.dp,
+            color = palette.card
+        ) {
+            Row(
+                Modifier.padding(start = 18.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("已删除一条记录", fontSize = 13.sp, color = palette.textSub)
+                Text(
+                    "撤销",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = palette.primaryDeep,
+                    modifier = Modifier
+                        .semantics { contentDescription = "撤销刚才的删除" }
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onUndo
+                        )
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                )
+            }
         }
     }
 }

@@ -20,7 +20,8 @@ data class AppPalette(
     val accent: Color,
     val poop: Color,
     val poopDark: Color,
-    val poopLight: Color
+    val poopLight: Color,
+    val isDark: Boolean = false
 )
 
 private val PoopC = Color(0xFFBE8E60)
@@ -50,30 +51,79 @@ val PALETTES = listOf(
         PoopC, PoopDarkC, PoopLightC)
 )
 
+/** 夜间色板：与 PALETTES 一一对应（同索引同主题），暖炭底 + 同色相低饱和，插画棕保持不变 */
+val DARK_PALETTES = listOf(
+    AppPalette("鼠尾草", Color(0xFF1B2017), Color(0xFF252B21), Color(0xFF303729),
+        Color(0xFF8FAE7E), Color(0xFF2D3A28), Color(0xFFC4D6AE),
+        Color(0xFFE6E4D6), Color(0xFF99A08D), Color(0xFFF2C14E),
+        PoopC, PoopDarkC, PoopLightC, isDark = true),
+    AppPalette("蜜桃", Color(0xFF241C18), Color(0xFF2F2620), Color(0xFF3B2F28),
+        Color(0xFFE39A82), Color(0xFF3E2D26), Color(0xFFF2C6B4),
+        Color(0xFFF1E7E0), Color(0xFFA8978D), Color(0xFFF2C14E),
+        PoopC, PoopDarkC, PoopLightC, isDark = true),
+    AppPalette("晴空", Color(0xFF161C23), Color(0xFF1F262E), Color(0xFF29323C),
+        Color(0xFF7FA8C9), Color(0xFF243039), Color(0xFFC6D9E9),
+        Color(0xFFE3E9EE), Color(0xFF8D99A5), Color(0xFFF2C14E),
+        PoopC, PoopDarkC, PoopLightC, isDark = true),
+    AppPalette("薰衣草", Color(0xFF1E1A26), Color(0xFF282231), Color(0xFF342C41),
+        Color(0xFFA48FC9), Color(0xFF302A42), Color(0xFFD7CBEA),
+        Color(0xFFEAE5F1), Color(0xFF9B93A9), Color(0xFFF2C14E),
+        PoopC, PoopDarkC, PoopLightC, isDark = true),
+    AppPalette("落日", Color(0xFF221D13), Color(0xFF2C2618), Color(0xFF38301F),
+        Color(0xFFD9A441), Color(0xFF372F1D), Color(0xFFF0DCAA),
+        Color(0xFFF0EAD8), Color(0xFFA2957B), Color(0xFFE58F5A),
+        PoopC, PoopDarkC, PoopLightC, isDark = true)
+)
+
 val LocalAppPalette = staticCompositionLocalOf { PALETTES[0] }
 
 /** 把 App 色板映射到 Material3 配色，让 TextButton/AlertDialog 等组件跟随主题而非默认紫色 */
-fun AppPalette.toColorScheme(): androidx.compose.material3.ColorScheme =
-    androidx.compose.material3.lightColorScheme(
-        primary = primary,
-        onPrimary = Color.White,
-        primaryContainer = primarySoft,
-        onPrimaryContainer = primaryDeep,
-        secondary = primary,
-        onSecondary = Color.White,
-        secondaryContainer = primarySoft,
-        onSecondaryContainer = primaryDeep,
-        background = bg,
-        onBackground = textMain,
-        surface = card,
-        onSurface = textMain,
-        surfaceVariant = cardAlt,
-        onSurfaceVariant = textSub,
-        outline = cardAlt,
-        outlineVariant = cardAlt,
-        error = Color(0xFFD06A5A),
-        onError = Color.White
-    )
+fun AppPalette.toColorScheme(): androidx.compose.material3.ColorScheme {
+    val error = Color(0xFFD06A5A)
+    return if (isDark) {
+        androidx.compose.material3.darkColorScheme(
+            primary = primary,
+            onPrimary = Color(0xFF1B2017),
+            primaryContainer = primarySoft,
+            onPrimaryContainer = primaryDeep,
+            secondary = primary,
+            onSecondary = Color(0xFF1B2017),
+            secondaryContainer = primarySoft,
+            onSecondaryContainer = primaryDeep,
+            background = bg,
+            onBackground = textMain,
+            surface = card,
+            onSurface = textMain,
+            surfaceVariant = cardAlt,
+            onSurfaceVariant = textSub,
+            outline = cardAlt,
+            outlineVariant = cardAlt,
+            error = error,
+            onError = Color.White
+        )
+    } else {
+        androidx.compose.material3.lightColorScheme(
+            primary = primary,
+            onPrimary = Color.White,
+            primaryContainer = primarySoft,
+            onPrimaryContainer = primaryDeep,
+            secondary = primary,
+            onSecondary = Color.White,
+            secondaryContainer = primarySoft,
+            onSecondaryContainer = primaryDeep,
+            background = bg,
+            onBackground = textMain,
+            surface = card,
+            onSurface = textMain,
+            surfaceVariant = cardAlt,
+            onSurfaceVariant = textSub,
+            outline = cardAlt,
+            outlineVariant = cardAlt,
+            error = error,
+            onError = Color.White
+        )
+    }
+}
 
 /** 主题切换时让所有颜色平滑过渡 */
 @Composable
