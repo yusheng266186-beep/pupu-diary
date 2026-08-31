@@ -1,24 +1,41 @@
-# 噗噗日记 · Pupu Diary
+# 噗噗日记 × 便便晴天 · 便便健康记录双 App 合集
 
-> 轻轻记录，轻松每一天 🌿
-> 一款极简治愈风的便便健康记录 Android 应用 —— Kotlin + Jetpack Compose，插画全部由 Canvas 代码手绘，无任何图片资源。
+> 一个仓库，两个 App，两条分支。轻轻记录，轻松每一天 🌿
 
-[![Release](https://img.shields.io/badge/download-最新版本-8FAE7E)](../../releases)
+[![Release](https://img.shields.io/badge/download-Releases-8FAE7E)](../../releases)
 [![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-F6F2E7)](#)
-[![Build](https://img.shields.io/badge/build-Gradle%208.9%20%2B%20AGP%208.4-47503C)](#)
+[![Build](https://img.shields.io/badge/build-Gradle%208.9-47503C)](#)
+[![CI](https://img.shields.io/badge/CI-GitHub_Actions-2088FF)](../../actions)
 
-## 这是什么
+本仓库以 **monorepo + 双分支** 的形式承载两款独立开发的 Android 便便健康记录 App。两个项目各自拥有完整的提交历史、独立的版本线与发布节奏，互不影响；仓库根目录的说明文档（本文件与 [`ARCHITECTURE.md`](ARCHITECTURE.md)）对两者统一负责。
 
-**噗噗日记**是一款本地便便健康记录 App：每天花几秒钟，记录便便形状、心情与顺滑度，
-App 会帮你画出趋势、发现规律、给出温柔的饮食与作息建议。
+## 分支与标签模型
 
-- 🎨 **极简治愈风**：奶油底色 + 鼠尾草绿 + 软萌便便主角，参考「极简治愈风」设计稿高保真还原
-- 🖐️ **全手绘插画**：便便主角、Bristol 七型图标、心情脸、太阳云朵草地、全部图标均为 Canvas 矢量代码，安装包仅 ~1.2MB
-- 🔒 **数据只在本地**：无账号、无联网、无埋点，随时一键导出 JSON 备份
-- 📊 **看得见的规律**：日/周/月/年四段统计、趋势柱状图、形状分布环图、月历标记、规律小发现
+| 分支 | 项目 | 当前版本 | 标签前缀 | CI |
+|---|---|---|---|---|
+| [`main`](../../tree/main) | **噗噗日记 Pupu Diary**（主线） | v2.1.0 | `v*` | 单元测试 + Debug 构建制品 |
+| [`shunshun`](../../tree/shunshun) | **便便晴天**（独立项目） | v1.11.0 | `shunshun-v*` | 按其分支内 workflow 配置 |
+
+- 切换项目：`git checkout main` 或 `git checkout shunshun`，两个分支都是**根目录级**的完整 Android 工程。
+- 发版标签：噗噗日记用 `vX.Y.Z`，便便晴天用 `shunshun-vX.Y.Z`，命名空间互不冲突。
+- **请勿在两分支之间互相提 PR**：两分支为不相关历史（merge `-s ours` 联结），跨分支 PR 会产生大量伪冲突。
+- 2026-08-31 迁移记录：便便晴天原为独立仓库 `shunshun-android`，其全部 16 个提交、12 个标签与 11 个 Release（含 APK 资产）已完整迁入本仓库，原仓库随后删除，未丢失任何文件。
+
+---
+
+## 🌿 噗噗日记 Pupu Diary（`main` 分支）
+
+> 轻轻记录，轻松每一天 —— 极简治愈风的便便健康记录 App，Kotlin + Jetpack Compose，插画全部由 Canvas 代码手绘，无任何图片资源。
+
+### 特色
+
+- 🎨 **极简治愈风**：奶油底色 + 鼠尾草绿 + 软萌便便主角
+- 🖐️ **全手绘插画**：便便主角、Bristol 七型图标、心情脸、全部图标均为 Canvas 矢量代码，安装包仅 ~1.2MB
+- 🔒 **数据只在本地**：无账号、无联网、无埋点，一键导出 JSON 备份
+- 📊 **看得见的规律**：日/周/月/年四段统计、趋势柱状图、形状分布环图、规律小发现
 - ✨ **细节控**：糖果按压按钮、角色呼吸/眨眼/闲时小跳、撒花保存、逐项触感反馈、五套可切换主题色
 
-## 功能一览
+### 功能一览
 
 | 模块 | 能力 |
 |---|---|
@@ -28,18 +45,18 @@ App 会帮你画出趋势、发现规律、给出温柔的饮食与作息建议�
 | 贴士 | 喝水/运动/纤维每日打卡（可加减）、Bristol 速查、饮食作息与应对知识 |
 | 我的 | 记录/喝水提醒（每日自动续期）、隐私模式、导出+分享备份、导入恢复、每周自动备份、清空数据、五套主题色 |
 
-## 下载安装
+### 下载安装
 
-前往 [**Releases**](../../releases) 下载对应版本：
+前往 [**Releases**](../../releases)，选择 `v*` 标签的版本：
 
 - `pupu-diary-vX.Y.Z-release.apk` —— 签名优化版（推荐，约 1.2MB）
 - `pupu-diary-vX.Y.Z-debug.apk` —— 调试版
 
-最低支持 **Android 8.0（API 26）**，覆盖安装可保留历史数据（数据库自动迁移）。
+最低支持 **Android 8.0（API 26）**。
 
-> **签名变更提示（v2.1.0 起）**：因安全加固，从 v2.1.0 开始应用改用新的签名密钥，与 v2.0.0 及更早版本的旧密钥不同。**从旧版本升级无法直接覆盖安装，需先卸载旧版再安装新版**；卸载会清空本地数据，请先在旧版「我的 → 数据备份」中导出 JSON 备份，再在新版中导入恢复。
+> **签名变更提示（v2.1.0 起）**：因安全加固，v2.1.0 起改用新的签名密钥，与 v2.0.0 及更早版本不同。**从旧版本升级无法覆盖安装，需先卸载旧版再安装新版**；卸载会清空本地数据，请先在旧版「我的 → 数据备份」导出 JSON 备份，再在新版中导入恢复。
 
-## 版本历史
+### 版本历史
 
 | 版本 | 亮点 |
 |---|---|
@@ -53,37 +70,70 @@ App 会帮你画出趋势、发现规律、给出温柔的饮食与作息建议�
 | v1.8.0 | 通知点击直达对应页面、导出备份一键分享、本地崩溃日志、窄屏溢出修复 |
 | v1.9.0 | 糖果前夜：主按钮柔和化、月历范围联动、自定义时间选择器、弹窗全面换肤、返回手势逐级返回 |
 | **v2.0.0** | 糖果按压按钮（按下真实下沉）、统计日历四形态（单日卡/周条/月格/年格）、贴士 emoji 全部替换为手绘线性图标 |
-| **v2.1.0** | 安全加固：签名密钥轮换并移出仓库（v2.0.0 及更早升级需卸载重装）、新增 GitHub Actions CI 与单元测试 |
+| **v2.1.0** | 安全加固：签名密钥轮换并移出仓库、新增 GitHub Actions CI 与单元测试 |
 
-每个版本的完整更新说明见 [Releases](../../releases) 与 [`DESIGN.md`](DESIGN.md)。
+噗噗日记的完整设计规格与逐版更新说明见 [`DESIGN.md`](DESIGN.md)。
 
-## 技术栈与构建
+---
 
-- Kotlin 2.0.21 · Jetpack Compose（BOM 2024.09）· Material3（自定义主题映射）
-- 存储：SQLite（自动迁移）+ SharedPreferences；提醒：AlarmManager 每日自续期 + 开机重挂
-- 构建：JDK 17 + Gradle 8.9 + AGP 8.4.2
+## ☀️ 便便晴天（`shunshun` 分支）
+
+> 今天也要轻松一点 —— 面向日常生活记录的手绘治愈风 App，Kotlin + Jetpack Compose + Room，标准 Android 架构。
+
+### 特色
+
+- 🖌️ **手绘视觉语言**：品牌角色 + 原创 7 种手绘便便图案，全局无矩形水波纹的手绘交互
+- 🗂️ **记录维度更细**：7 种便便类型、可选**颜色日记**、心情、顺畅度、时长、腹痛 / 费力 / 未排净、备注
+- 📜 **历史时间线**：日期筛选、详情、编辑、删除；生活趋势与上一周期对比
+- ⏰ **完整提醒链路**：通知权限、时间设置（自绘 24 小时轮盘）、每日调度、重启恢复
+- 🏗️ **标准架构**：Room（Flow 响应式）+ Repository + DataStore + ViewModel + Navigation Compose
+
+### 下载安装
+
+前往 [**Releases**](../../releases)，选择 `shunshun-v*` 标签的版本。当前版本 **v1.11.0** 为首个 R8 混淆 + 正式签名版（约 1.36MB，此前历史版本均为 Debug 包）。
+
+> **签名变更提示（v1.11.0 起）**：v1.11.0 起为正式签名，与历史 Debug 包签名不同，安装需先卸载旧版，并提前导出备份。
+
+### 版本历史（摘要）
+
+| 版本 | 亮点 |
+|---|---|
+| v1.0.0–v1.3.0 | 顺顺初版 → 手绘治愈风重构，确立视觉语言 |
+| v1.4.0–v1.6.0 | 记录字段扩展（时长/腹部状态/费力/未排净）、实机截图视觉修正 |
+| v1.7.0–v1.8.0 | 记录详情/编辑/删除、提醒全链路、Repository 分层 |
+| v1.9.0–v1.10.0 | 颜色日记（Room 迁移无感保留）、连续徽章、趋势周期对比、日期带横滑 |
+| **v1.11.0** | 首个签名优化版（R8 混淆，体积 -92%）、kapt→KSP、仓库瘦身 |
+
+各版本完整说明见 [Releases](../../releases) 中 `shunshun-v*` 系列条目。
+
+---
+
+## 两个 App 怎么选
+
+| | 噗噗日记（main） | 便便晴天（shunshun） |
+|---|---|---|
+| 定位 | 主线产品，功能密度与细节打磨优先 | 架构试验田，标准 Android 工程范式 |
+| 代码规模 | 24 文件 / ~6000 行 | 16 文件 / ~2200 行 |
+| 数据层 | 裸 SQLiteOpenHelper + SharedPreferences | Room + Flow + DataStore + Repository |
+| 架构风格 | AppState 单例 + 自研导航，零第三方依赖 | ViewModel + Navigation Compose 全家桶 |
+| 安装包 | ~1.2MB（R8） | ~1.36MB（R8，v1.11.0 起） |
+| 特色功能 | 五套主题、贴士打卡、双提醒、四形态统计 | 颜色日记、腹痛/费力/未排净字段、历史时间线 |
+
+详细的技术架构对照与演进路线见 [`ARCHITECTURE.md`](ARCHITECTURE.md)。
+
+## 构建两个 App
+
+两个分支均为标准 Android 工程：JDK 17 + Gradle 8.9 wrapper，Android Studio 直接打开，或命令行：
 
 ```bash
-# 调试包
+git checkout main      # 或 shunshun
 ./gradlew assembleDebug
 # 产物：app/build/outputs/apk/debug/app-debug.apk
 ```
 
-> 签名密钥（`*.jks`）**不提交到仓库**。签名配置通过根目录 `local.properties`（已被 `.gitignore` 排除）提供，键名：`pupu.storeFile` / `pupu.storePassword` / `pupu.keyAlias` / `pupu.keyPassword`；该文件缺失时 release 构建输出未签名包。
-
-## 项目结构
-
-```
-app/src/main/java/com/pupu/diary/
-├── data/          # PoopRecord 模型、SQLite、偏好
-├── ui/
-│   ├── screens/   # Home / Record / Stats / Tips / Profile
-│   ├── components/# 便便角色、Bristol 图标、心情脸、图表、糖果按钮、撒花…
-│   └── theme/     # 五套可切换色板 + MaterialTheme 映射
-└── util/          # 备份、提醒、崩溃日志、日期工具
-```
+> 两个项目的签名密钥（`*.jks`）**均不提交到仓库**，通过根目录 `local.properties`（已 gitignore）提供：噗噗日记用 `pupu.*` 四键，便便晴天用 `shunshun.*` 四键；文件缺失时 release 构建输出未签名包，debug 构建不受影响。
 
 ## 隐私与声明
 
-- 所有数据仅保存在手机本地，App 不申请网络权限、不上传任何数据
-- 本应用仅供健康记录参考，不构成医疗诊断或治疗建议；如有持续不适应及时就医
+- 两款 App 的所有数据均仅保存在手机本地：噗噗日记不申请网络权限，不上传任何数据；便便晴天同为本地记录
+- 本仓库内应用仅供健康记录参考，不构成医疗诊断或治疗建议；如有持续不适应及时就医
