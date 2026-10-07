@@ -2,6 +2,25 @@
 
 一款面向中国大陆用户的本地生活记录 Android App，品牌主题是“今天也要轻松一点”，视觉方向为极简、治愈、柔和的手绘插画风。
 
+<!-- project-navigation:start -->
+## 项目概览
+
+| 项目 | 说明 |
+| --- | --- |
+| 分类 | 生活记录 |
+| 平台 | Android |
+| 当前定位 | 独立 App · shunshun 分支 |
+
+在手机本地记录身体状态、查看趋势并导出备份的两款 Android 应用。
+
+[版本与下载](https://github.com/yusheng266186-beep/pupu-diary/releases) · [使用与开发](#构建) · [项目总导航](https://github.com/yusheng266186-beep/yusheng266186-beep)
+
+本分支承载便便晴天；[默认分支 main](https://github.com/yusheng266186-beep/pupu-diary/tree/main) 承载噗噗日记。下载本 App 时选择 `shunshun-v*` 发布标签。
+
+**阅读导航：** [构建](#构建) · [版本历史](#版本历史)
+
+<!-- project-navigation:end -->
+
 ## 已实现
 
 - 首页治愈场景与轻量动画
@@ -10,7 +29,7 @@
 - Room 本地数据持久化
 - 历史记录时间线、节奏趋势线与类型环形图
 - 本地备份导出、恢复和清除
-- Debug APK 可直接安装验证
+- 历史 Debug APK 可用于对应版本的安装验证；当前签名与下载说明见「APK」
 - 页面已按首页、记录、统计、我的拆分，统一使用手绘 Canvas 资产与自定义交互组件
 - 记录支持时长、腹部状态、费力、未排净和备注；历史记录支持日期筛选；统计区间按真实数据聚合
 - 针对实机截图优化底部线性图标、心情表情语义、首页植物层次和统计标签排版
@@ -21,7 +40,7 @@
 - 首页便便角色支持轻点回应与随机鼓励气泡；心情表情、便便颜色选项和提醒图标进一步统一细化
 - 首页星光采用分散上浮的 Canvas 动画；历史日期带支持横向滑动并保留更早记录；生活趋势按顺畅度、心情和记录频率与上一周期对比
 - 统一固定设置行栅格，优化页面切换与高刷新率偏好，减少多余布局动画以提升滑动跟手度
-- GitHub Actions 会在 master 推送和 Pull Request 中自动构建 Debug APK 并上传构建产物
+- 当前保留的构建工作流仍监听 `master`；本项目位于 `shunshun`，该分支推送不会自动触发这份旧工作流，可按实际需要从 Actions 手动运行。
 
 ## 构建
 
@@ -47,7 +66,7 @@ release 签名密钥与密码存放在本地 `local.properties`（键名：`shun
 
 ## APK
 
-APK 不再提交进仓库。各版本安装包请到 [GitHub Releases](https://github.com/yusheng266186-beep/shunshun-android/releases) 页面下载；最新 master 分支自动构建的 Debug APK 可在 [GitHub Actions](https://github.com/yusheng266186-beep/shunshun-android/actions) 的构建产物中获取。
+APK 不再提交进仓库。各版本安装包请到 [GitHub Releases](https://github.com/yusheng266186-beep/pupu-diary/releases) 页面下载；已有 Debug APK 构建产物可在 [GitHub Actions](https://github.com/yusheng266186-beep/pupu-diary/actions) 的构建产物中获取。
 
 **签名变化**：自 v1.11.0 起提供 R8 混淆 + 资源收缩的正式签名 Release APK，使用全新正式密钥签名，与 v1.10.0 及更早版本的 Debug 签名不同，无法覆盖安装——已装旧版的用户请先卸载旧版再安装新版；如有需要保留的数据，请先在 App 内使用备份导出功能，重装后恢复。
 
