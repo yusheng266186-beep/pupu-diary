@@ -7,7 +7,26 @@
 [![Build](https://img.shields.io/badge/build-Gradle%208.9-47503C)](#)
 [![CI](https://img.shields.io/badge/CI-GitHub_Actions-2088FF)](../../actions)
 
-本仓库以 **monorepo + 双分支** 的形式承载两款独立开发的 Android 便便健康记录 App。两个项目各自拥有完整的提交历史、独立的版本线与发布节奏，互不影响；仓库根目录的说明文档（本文件与 [`ARCHITECTURE.md`](ARCHITECTURE.md)）对两者统一负责。
+本仓库以 **同库双分支** 的形式承载两款独立开发的 Android 便便健康记录 App。两个项目各自拥有完整的提交历史、独立的版本线与发布节奏，互不影响；仓库根目录的说明文档（本文件与 [`ARCHITECTURE.md`](ARCHITECTURE.md)）对两者统一负责。
+
+<!-- project-navigation:start -->
+## 项目概览
+
+| 项目 | 说明 |
+| --- | --- |
+| 分类 | 生活记录 |
+| 平台 | Android |
+| 当前定位 | 两个 App · 两条独立分支 |
+
+在手机本地记录身体状态、查看趋势并导出备份的两款 Android 应用。
+
+[版本与下载](https://github.com/yusheng266186-beep/pupu-diary/releases) · [使用与开发](#构建两个-app) · [项目总导航](https://github.com/yusheng266186-beep/yusheng266186-beep)
+
+**先选择产品：** `main` 是噗噗日记；[`shunshun`](../../tree/shunshun) 是便便晴天。两者的版本号、工程和安装包分别维护，下载便便晴天时选择 `shunshun-v*` 标签。
+
+**阅读导航：** [构建两个 App](#构建两个-app) · [隐私与声明](#隐私与声明)
+
+<!-- project-navigation:end -->
 
 ## 分支与标签模型
 
@@ -129,11 +148,16 @@
 
 两个分支均为标准 Android 工程：JDK 17 + Gradle 8.9 wrapper，Android Studio 直接打开，或命令行：
 
-```bash
-git checkout main      # 或 shunshun
-./gradlew assembleDebug
-# 产物：app/build/outputs/apk/debug/app-debug.apk
+Windows PowerShell（两条分支均有 wrapper）：
+
+```powershell
+git switch main       # 或 git switch shunshun
+.\gradlew.bat assembleDebug
 ```
+
+Linux / macOS：`main` 分支提供 `./gradlew assembleDebug`；`shunshun` 当前只有 Windows wrapper，可使用 Android Studio，或在已安装 Gradle 8.9 的环境执行 `gradle assembleDebug`。
+
+产物：`app/build/outputs/apk/debug/app-debug.apk`。
 
 > 两个项目的签名密钥（`*.jks`）**均不提交到仓库**，通过根目录 `local.properties`（已 gitignore）提供：噗噗日记用 `pupu.*` 四键，便便晴天用 `shunshun.*` 四键；文件缺失时 release 构建输出未签名包，debug 构建不受影响。
 
