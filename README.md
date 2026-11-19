@@ -1,5 +1,7 @@
 # 噗噗日记 × 便便晴天 · 便便健康记录双 App 合集
 
+[English guide](README.en.md)
+
 > 一个仓库，两个 App，两条分支。轻轻记录，轻松每一天 🌿
 
 [![Release](https://img.shields.io/badge/download-Releases-8FAE7E)](../../releases)
@@ -165,3 +167,7 @@ Linux / macOS：`main` 分支提供 `./gradlew assembleDebug`；`shunshun` 当�
 
 - 两款 App 的所有数据均仅保存在手机本地：噗噗日记不申请网络权限，不上传任何数据；便便晴天同为本地记录
 - 本仓库内应用仅供健康记录参考，不构成医疗诊断或治疗建议；如有持续不适应及时就医
+
+## 许可证
+
+`main` 和 `shunshun` 的原创应用代码与项目文档采用 [MIT](LICENSE)。Gradle 和第三方依赖保留各自的许可证。
