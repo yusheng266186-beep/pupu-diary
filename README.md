@@ -88,3 +88,10 @@ APK 不再提交进仓库。各版本安装包请到 [GitHub Releases](https://g
 | v1.2.0 | 细化全新手绘治愈风视觉语言 |
 | v1.1.0 | 整体重构为手绘治愈风体验 |
 | v1.0.0 | 首个版本：便便记录、Room 持久化、历史时间线与类型环形图 |
+
+
+## 许可证 / License
+
+原创应用代码与文档采用 [MIT](LICENSE)。Gradle 和第三方依赖保留各自的许可证。
+
+Original app code and documentation use the [MIT License](LICENSE). Gradle and third-party dependencies retain their own licenses. [English project guide](https://github.com/yusheng266186-beep/pupu-diary/blob/main/README.en.md)
